@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { generateFromPhoto } from '../services/apiClient';
 
 function PhotoToArtSection() {
   const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
@@ -111,26 +112,19 @@ function PhotoToArtSection() {
         setGeneratedImage('');
       }
 
-      const formData = new FormData();
-      formData.append('image', selectedImage);
-      formData.append('prompt', description.trim());
-
-      const response = await fetch('http://localhost:8080/api/v1/generate', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Network response was not ok. Status: ${response.status}. Message: ${errorText}`);
-      }
-
-      const resultBlob = await response.blob();
+      const resultBlob = await generateFromPhoto(selectedImage, description.trim());
       setGeneratedImage(URL.createObjectURL(resultBlob));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Error generating image:', error);
-      const message = error instanceof Error ? error.message : 'Failed to generate image.';
+      // Keep the existing wording. `error.message` is now the ProblemDetail `detail`
+      // from the backend instead of the raw text/plain body.
+      const message =
+        error.status !== undefined
+          ? `Network response was not ok. Status: ${error.status}. Message: ${error.message}`
+          : error instanceof Error
+            ? error.message
+            : 'Failed to generate image.';
       setErrorMessage(message);
     } finally {
       setIsLoading(false);

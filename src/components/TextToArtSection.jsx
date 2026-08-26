@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { generateFromText } from '../services/apiClient';
 
 function TextToArtSection() {
   const [style, setStyle] = useState('general');
@@ -43,28 +44,19 @@ function TextToArtSection() {
         setGeneratedImage('');
       }
 
-      const response = await fetch('http://localhost:8080/api/v1/generate-from-text', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: description.trim(),
-          style,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Network response was not ok. Status: ${response.status}. Message: ${errorText}`);
-      }
-
-      const resultBlob = await response.blob();
+      const resultBlob = await generateFromText(description.trim(), style);
       setGeneratedImage(URL.createObjectURL(resultBlob));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Error generating image from text:', error);
-      setErrorMessage('Failed to generate image. Please ensure backend is running and try again.');
+      // This endpoint used to return an empty 500 body, so the UI could only ever show a
+      // generic line. It now returns a ProblemDetail, so show the real cause when there is
+      // one and keep the original wording for network-level failures.
+      setErrorMessage(
+        error.status !== undefined && error.message
+          ? error.message
+          : 'Failed to generate image. Please ensure backend is running and try again.',
+      );
     } finally {
       setIsLoading(false);
     }

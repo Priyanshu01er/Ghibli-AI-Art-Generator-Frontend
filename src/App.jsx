@@ -1,13 +1,25 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import CreatePage from './components/CreatePage';
 import HomePage from './components/HomePage';
+import LoginPage from './components/LoginPage';
+import NotFoundPage from './components/NotFoundPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import SignupPage from './components/SignupPage';
+
+/**
+ * Routes that render their own page from the top rather than scrolling to a section of
+ * HomePage. HomePage owns its own scroll behaviour via the route→section map it shares
+ * with Header and Footer, so those paths must not be forced to the top from here.
+ */
+const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup'];
 
 function ScrollToTop() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    if (pathname === '/create') {
+    if (SCROLL_TO_TOP_ROUTES.includes(pathname)) {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     }
   }, [pathname]);
@@ -18,11 +30,40 @@ function ScrollToTop() {
 function App() {
   return (
     <BrowserRouter>
-      <ScrollToTop />
-      <Routes>
-        <Route path="/create" element={<CreatePage />} />
-        <Route path="*" element={<HomePage />} />
-      </Routes>
+      {/* Inside the router on purpose: AuthProvider uses useNavigate so a 401 can bounce
+          the user to /login through the router instead of reloading the document. */}
+      <AuthProvider>
+        <ScrollToTop />
+        <Routes>
+          {/*
+            These five all render HomePage, which scrolls to the matching section. They
+            used to arrive here only via the catch-all — so they have to be listed
+            explicitly now that `*` is a real 404, or the entire nav would 404.
+          */}
+          <Route path="/" element={<HomePage />} />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/features" element={<HomePage />} />
+          <Route path="/gallery" element={<HomePage />} />
+          <Route path="/faq" element={<HomePage />} />
+
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+
+          {/* The generation endpoints require a token as of Phase 2, so an anonymous
+              visitor here would only reach a form whose every submit 401s. */}
+          <Route
+            path="/create"
+            element={
+              <ProtectedRoute>
+                <CreatePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Was HomePage, which made every typo look like a successful navigation. */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
