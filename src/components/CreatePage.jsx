@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Footer from './Footer';
 import Header from './Header';
 import PhotoToArtSection from './PhotoToArtSection';
+import RecentGenerations from './RecentGenerations';
 import TextToArtSection from './TextToArtSection';
 
 function CreatePage() {
@@ -42,6 +43,14 @@ function CreatePage() {
           </div>
 
           {activeTab === 'photo' ? <PhotoToArtSection /> : <TextToArtSection />}
+
+          {/*
+            Outside the tab swap on purpose. The line above unmounts whichever section is
+            not active, discarding its in-memory blob URL — so this server-backed strip is
+            what keeps a just-generated image on screen across a tab switch, and what brings
+            it back after navigating away and returning.
+          */}
+          <RecentGenerations />
 
           <div className="mt-6 text-center text-sm text-slate-500">
             <Link to="/#home" className="font-semibold text-brand-700 hover:text-brand-800">

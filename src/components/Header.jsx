@@ -87,6 +87,16 @@ function Header() {
               >
                 {user?.name}
               </span>
+              {/* Authenticated only: /history is behind ProtectedRoute, so showing it to an
+                  anonymous visitor would link straight to a redirect. Styled as the quiet
+                  text link (the Log in idiom) rather than a second button, so Create stays
+                  the one primary action up here. */}
+              <Link
+                to="/history"
+                className="rounded-xl px-2 py-2.5 text-base font-semibold text-slate-700 transition-colors hover:text-brand-600 sm:px-3 sm:text-lg"
+              >
+                History
+              </Link>
               <Link
                 to="/create"
                 onClick={(event) => handleNavClick(event, '/create')}

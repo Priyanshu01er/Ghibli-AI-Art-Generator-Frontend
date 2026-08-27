@@ -7,6 +7,7 @@
  */
 
 import { clearSession, getAuthHeader, markSessionRejected } from './authStorage';
+import { notifyGenerationCreated } from './generationEvents';
 
 // CRA only exposes env vars prefixed with REACT_APP_, and only at build time.
 // import.meta.env / VITE_* do not exist in react-scripts 5.
@@ -116,17 +117,28 @@ const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please log in again.'
  * Shared request path: injects auth headers, converts failures to ApiError, and
  * centralises the 401 → sign-out decision.
  *
- * @param auth  false for /api/v1/auth/**. Two things hang off this. Those endpoints need
- *              no header, and — more importantly — a 401 from them means "wrong password",
- *              not "session over". Treating them the same would make a typo'd password
- *              clear the session and redirect, so a logged-in user checking a second
- *              account would be silently logged out of the first.
+ * @param auth   false for /api/v1/auth/**. Two things hang off this. Those endpoints need
+ *               no header, and — more importantly — a 401 from them means "wrong password",
+ *               not "session over". Treating them the same would make a typo'd password
+ *               clear the session and redirect, so a logged-in user checking a second
+ *               account would be silently logged out of the first.
+ * @param parse  'blob' for image bytes, 'json' for a DTO, 'none' for an empty 204. Calling
+ *               `.blob()` on a 204 would resolve to a 0-byte Blob rather than fail, so
+ *               'none' is about not handing callers a value that looks like a payload.
+ * @param signal an AbortSignal, so a component that unmounts mid-request can cancel it.
+ *               The rejection is a DOMException named 'AbortError', NOT an ApiError —
+ *               callers must check for it before showing an error, and the history hook
+ *               and image loader both do.
  */
-async function performRequest(path, { method = 'POST', headers = {}, body, auth = true, parse = 'blob' } = {}) {
+async function performRequest(
+  path,
+  { method = 'POST', headers = {}, body, auth = true, parse = 'blob', signal } = {},
+) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: auth ? { ...headers, ...buildAuthHeaders() } : { ...headers },
     body,
+    signal,
   });
 
   if (!response.ok) {
@@ -157,6 +169,10 @@ async function performRequest(path, { method = 'POST', headers = {}, body, auth 
     });
   }
 
+  if (parse === 'none') {
+    return null;
+  }
+
   if (parse === 'json') {
     return response.json();
   }
@@ -171,15 +187,23 @@ export async function generateFromPhoto(file, prompt) {
   formData.append('prompt', prompt);
 
   // No Content-Type header here on purpose: the browser must set the multipart boundary.
-  return performRequest('/api/v1/generate', { body: formData });
+  const blob = await performRequest('/api/v1/generate', { body: formData });
+
+  // After the await, so a failed generation does not tell history to refetch. The backend
+  // has already committed the row by the time this line runs — see generationEvents.
+  notifyGenerationCreated();
+  return blob;
 }
 
 /** POST /api/v1/generate-from-text — JSON text-to-art. Resolves to an image/png Blob. */
 export async function generateFromText(prompt, style) {
-  return performRequest('/api/v1/generate-from-text', {
+  const blob = await performRequest('/api/v1/generate-from-text', {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, style }),
   });
+
+  notifyGenerationCreated();
+  return blob;
 }
 
 /**
@@ -212,5 +236,81 @@ export async function login({ email, password }) {
     body: JSON.stringify({ email, password }),
     auth: false,
     parse: 'json',
+  });
+}
+
+// ── History ───────────────────────────────────────────────────────────────────────────
+// All three go through `performRequest`, so they inherit the auth header, the
+// ProblemDetail parsing and the 401 → sign-out behaviour. There is deliberately no second
+// fetch path in this app, not even for the image bytes.
+
+/**
+ * Mirrors `GenerationHistoryController.DEFAULT_PAGE_SIZE`. Twelve divides by 2, 3 and 4,
+ * so the last grid row is full at every breakpoint.
+ */
+export const HISTORY_PAGE_SIZE = 12;
+
+/**
+ * Mirrors `GenerationHistoryController.MAX_PAGE_SIZE`. Asking for more is a 400 with a
+ * ProblemDetail, not a clamp, so callers must not exceed it.
+ */
+export const MAX_HISTORY_PAGE_SIZE = 100;
+
+/**
+ * GET /api/v1/generations — one page of the caller's own history, newest first.
+ *
+ * Resolves to the backend's `PageResponse` envelope, exactly these nine fields:
+ * `{ content, page, size, totalElements, totalPages, first, last, numberOfElements }`,
+ * where each `content` item is a `GenerationSummaryResponse`:
+ * `{ id, type, prompt, style, engineId, width, height, imageSizeBytes, createdAt }`.
+ *
+ * `content` carries no image bytes and no image id — the bytes are addressed by the
+ * *generation* id via `fetchGenerationImage`. `width`, `height` and `imageSizeBytes` are
+ * nullable for rows whose PNG header could not be read.
+ *
+ * There is no `sort` parameter on this endpoint. Order is fixed server-side, so the
+ * newest generation is always `content[0]` of page 0.
+ *
+ * Rejects with ApiError 400 when `page < 0` or `size` is outside 1..MAX_HISTORY_PAGE_SIZE.
+ */
+export async function fetchGenerations({ page = 0, size = HISTORY_PAGE_SIZE, signal } = {}) {
+  const query = new URLSearchParams({ page: String(page), size: String(size) });
+
+  return performRequest(`/api/v1/generations?${query.toString()}`, {
+    method: 'GET',
+    parse: 'json',
+    signal,
+  });
+}
+
+/**
+ * GET /api/v1/generations/{id}/image — the PNG for one generation, as a Blob.
+ *
+ * This is the endpoint `<img src>` cannot reach: the browser's image loader sends no
+ * `Authorization` header, so a naive `src={API_BASE_URL + path}` 401s with nothing in the
+ * console to explain it. The caller must wrap this Blob in `URL.createObjectURL` — and
+ * then revoke it. See `GenerationCard` for the lifecycle.
+ *
+ * Rejects with ApiError 404 for an id that is not the caller's or no longer exists.
+ */
+export async function fetchGenerationImage(id, { signal } = {}) {
+  return performRequest(`/api/v1/generations/${encodeURIComponent(id)}/image`, {
+    method: 'GET',
+    parse: 'blob',
+    signal,
+  });
+}
+
+/**
+ * DELETE /api/v1/generations/{id} — removes the metadata and the image document.
+ *
+ * Resolves to null on the backend's 204. Not idempotent: deleting twice gives 204 then a
+ * 404 ApiError, which the hook treats as "already gone" rather than as a failure.
+ */
+export async function deleteGeneration(id, { signal } = {}) {
+  return performRequest(`/api/v1/generations/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    parse: 'none',
+    signal,
   });
 }

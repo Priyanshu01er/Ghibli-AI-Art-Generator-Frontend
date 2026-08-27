@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import CreatePage from './components/CreatePage';
+import HistoryPage from './components/HistoryPage';
 import HomePage from './components/HomePage';
 import LoginPage from './components/LoginPage';
 import NotFoundPage from './components/NotFoundPage';
@@ -13,7 +14,7 @@ import SignupPage from './components/SignupPage';
  * HomePage. HomePage owns its own scroll behaviour via the route→section map it shares
  * with Header and Footer, so those paths must not be forced to the top from here.
  */
-const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup'];
+const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup', '/history'];
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -56,6 +57,19 @@ function App() {
             element={
               <ProtectedRoute>
                 <CreatePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protected for a stronger reason than /create: every request this page makes is
+              owner-scoped, so with no token there is nothing to show — only 401s. Listed
+              explicitly rather than left to the catch-all, which PLAN.md 6.2 notes used to
+              swallow /history silently. */}
+          <Route
+            path="/history"
+            element={
+              <ProtectedRoute>
+                <HistoryPage />
               </ProtectedRoute>
             }
           />
