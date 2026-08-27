@@ -9,7 +9,8 @@ import {
 } from '../utils/generationLabels';
 
 /**
- * One history entry: its image, its metadata, and the view / download / delete actions.
+ * One history entry: its image, its metadata, and the download / delete actions. The image is
+ * itself the full-size trigger, which is why there is no separate View button.
  *
  * ── Why this component fetches its own image ─────────────────────────────────────────────
  * `GET /api/v1/generations/{id}/image` requires an `Authorization` header, and the browser's
@@ -211,25 +212,17 @@ function GenerationCard({
           </p>
         ) : null}
 
-        <div className="mt-4 flex flex-1 items-end gap-2">
-          <button
-            type="button"
-            onClick={() => onExpand?.(id)}
-            disabled={!canPreview}
-            className={`flex-1 rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition-colors ${
-              canPreview
-                ? 'hover:border-brand-500 hover:text-brand-600'
-                : 'cursor-not-allowed opacity-50'
-            }`}
-          >
-            View
-          </button>
-
+        {/* justify-between, and Download without flex-1: Download sits hard left and Delete
+            hard right, which is what the removed View button used to sit between. */}
+        <div className="mt-4 flex flex-1 items-end justify-between gap-2">
+          {/* The View button that used to lead this row is gone — it fired the same
+              `onExpand(id)` the image itself already fires, so it cost a third of the row
+              for nothing. Full-size view is unchanged: click the image. */}
           <button
             type="button"
             onClick={handleDownload}
             disabled={!canPreview}
-            className={`flex-1 rounded-xl bg-gradient-to-r from-brand-700 to-amber-800 px-3 py-2.5 text-sm font-semibold text-white shadow-glow transition-transform ${
+            className={`rounded-xl bg-gradient-to-r from-brand-700 to-amber-800 px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition-transform ${
               canPreview ? 'hover:-translate-y-0.5' : 'cursor-not-allowed opacity-60'
             }`}
           >

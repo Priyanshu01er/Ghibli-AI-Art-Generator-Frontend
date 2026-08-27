@@ -1,21 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { generateFromText } from '../services/apiClient';
+import { useAuth } from '../context/AuthContext'; // For the userId a stored draft is stamped with
+import { blobToDataUrl, clearDraft, readDraft, writeDraft } from '../services/generationDraftStore';
 
 function TextToArtSection() {
-  const [style, setStyle] = useState('general');
-  const [description, setDescription] = useState('');
-  const [generatedImage, setGeneratedImage] = useState('');
+  const { user } = useAuth();
+  const userId = user?.userId ?? null; // Scopes the draft, so another account never sees it
+  // Read once on mount — see PhotoToArtSection for why this is not re-read per render.
+  const [restoredDraft] = useState(() => readDraft('text', userId));
+  const [style, setStyle] = useState(restoredDraft?.style ?? 'general'); // Dropdown restores too
+  const [description, setDescription] = useState(restoredDraft?.prompt ?? '');
+  const [generatedImage, setGeneratedImage] = useState(restoredDraft?.dataUrl ?? '');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const canGenerate = description.trim().length > 0 && !isLoading;
 
-  useEffect(() => {
-    return () => {
-      if (generatedImage) {
-        URL.revokeObjectURL(generatedImage);
-      }
-    };
-  }, [generatedImage]);
+  // The revoke-on-unmount effect is gone with the object URL it guarded: `generatedImage` is a
+  // persisted `data:` URL now, and this component owns no object URL at all.
 
   const handleStyleChange = (event) => {
     setStyle(event.target.value);
@@ -40,12 +41,20 @@ function TextToArtSection() {
 
     try {
       if (generatedImage) {
-        URL.revokeObjectURL(generatedImage);
-        setGeneratedImage('');
+        setGeneratedImage(''); // Clearing the panel; the stored copy goes with it
+        clearDraft('text', userId); // …so a failed retry cannot resurrect the old image
       }
 
       const resultBlob = await generateFromText(description.trim(), style);
-      setGeneratedImage(URL.createObjectURL(resultBlob));
+      const dataUrl = await blobToDataUrl(resultBlob); // Base64 so it can outlive this document
+      setGeneratedImage(dataUrl);
+      // Carries `style` as well, so the dropdown and the image are restored as one result.
+      writeDraft('text', userId, {
+        dataUrl,
+        prompt: description.trim(),
+        style,
+        savedAt: Date.now(),
+      });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Error generating image from text:', error);
@@ -77,9 +86,7 @@ function TextToArtSection() {
 
   // Reset form and generated image when user wants to create another image
   const handleCreateAnother = () => {
-    if (generatedImage) {
-      URL.revokeObjectURL(generatedImage);
-    }
+    clearDraft('text', userId); // The user-facing end of "kept until Create Another or logout"
     setGeneratedImage('');
     setDescription('');
     setStyle('general');

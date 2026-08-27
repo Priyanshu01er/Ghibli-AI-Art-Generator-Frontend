@@ -1,27 +1,36 @@
 import { useEffect, useRef, useState } from 'react';
 import { generateFromPhoto } from '../services/apiClient';
+import { useAuth } from '../context/AuthContext'; // For the userId a stored draft is stamped with
+import { blobToDataUrl, clearDraft, readDraft, writeDraft } from '../services/generationDraftStore';
 
 function PhotoToArtSection() {
   const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+  const { user } = useAuth();
+  const userId = user?.userId ?? null; // Scopes the draft, so another account never sees it
+  /*
+   * Read once, in an initialiser: this survives CreatePage unmounting the inactive tab, and a
+   * full reload. Held in state rather than re-read per render because the read is a
+   * synchronous localStorage hit plus a JSON.parse of ~2.5 MB of base64.
+   */
+  const [restoredDraft] = useState(() => readDraft('photo', userId));
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState('');
-  const [description, setDescription] = useState('');
-  const [generatedImage, setGeneratedImage] = useState('');
+  const [description, setDescription] = useState(restoredDraft?.prompt ?? ''); // Prompt comes back too
+  const [generatedImage, setGeneratedImage] = useState(restoredDraft?.dataUrl ?? ''); // …with the art
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const fileInputRef = useRef(null);
   const canTransform = Boolean(selectedImage) && description.trim().length > 0 && !isLoading;
 
+  // `generatedImage` is a persisted `data:` URL now, so there is nothing to revoke for it —
+  // only the upload preview is still an object URL owned by this component.
   useEffect(() => {
     return () => {
-      if (generatedImage) {
-        URL.revokeObjectURL(generatedImage);
-      }
       if (selectedPreviewImage) {
         URL.revokeObjectURL(selectedPreviewImage);
       }
     };
-  }, [generatedImage, selectedPreviewImage]);
+  }, [selectedPreviewImage]);
 
   const handleBrowseClick = () => {
     if (fileInputRef.current) {
@@ -72,8 +81,8 @@ function PhotoToArtSection() {
     }
 
     if (generatedImage) {
-      URL.revokeObjectURL(generatedImage);
-      setGeneratedImage('');
+      setGeneratedImage(''); // No revoke: a data URL holds no object-URL handle
+      clearDraft('photo', userId); // A new upload supersedes the saved result as well
     }
 
     setSelectedImage(file);
@@ -108,12 +117,17 @@ function PhotoToArtSection() {
 
     try {
       if (generatedImage) {
-        URL.revokeObjectURL(generatedImage);
-        setGeneratedImage('');
+        setGeneratedImage(''); // Clearing the panel; the stored copy goes with it
+        clearDraft('photo', userId); // …so a failed retry cannot resurrect the old image
       }
 
       const resultBlob = await generateFromPhoto(selectedImage, description.trim());
-      setGeneratedImage(URL.createObjectURL(resultBlob));
+      // Base64, not URL.createObjectURL: an object URL dies with this document, so it could
+      // never be restored after a reload. See generationDraftStore for the full reasoning.
+      const dataUrl = await blobToDataUrl(resultBlob);
+      setGeneratedImage(dataUrl);
+      // Best-effort: a false return (quota) only costs persistence, never the image on screen.
+      writeDraft('photo', userId, { dataUrl, prompt: description.trim(), savedAt: Date.now() });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Error generating image:', error);
@@ -145,13 +159,11 @@ function PhotoToArtSection() {
   };
 
   const handleCreateAnother = () => {
-    if (generatedImage) {
-      URL.revokeObjectURL(generatedImage);
-    }
     if (selectedPreviewImage) {
       URL.revokeObjectURL(selectedPreviewImage);
     }
 
+    clearDraft('photo', userId); // The user-facing end of "kept until Create Another or logout"
     setGeneratedImage('');
     setSelectedImage(null);
     setSelectedPreviewImage('');
@@ -188,7 +200,7 @@ function PhotoToArtSection() {
             <div>
               <img
                 src={selectedPreviewImage}
-                alt="Selected image preview"
+                alt="Preview of the file you selected"
                 className="mx-auto max-h-[220px] w-full rounded-xl object-contain sm:max-h-[250px]"
               />
               {selectedImage ? <p className="mt-3 text-sm text-slate-500">Selected: {selectedImage.name}</p> : null}

@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import CreatePage from './components/CreatePage';
 import HistoryPage from './components/HistoryPage';
 import HomePage from './components/HomePage';
+import LegalPage from './components/LegalPage'; // Terms + Privacy, one page with two sections
 import LoginPage from './components/LoginPage';
 import NotFoundPage from './components/NotFoundPage';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -14,7 +15,9 @@ import SignupPage from './components/SignupPage';
  * HomePage. HomePage owns its own scroll behaviour via the route→section map it shares
  * with Header and Footer, so those paths must not be forced to the top from here.
  */
-const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup', '/history'];
+// /legal is the top of the legal page; /terms and /privacy are sections of it and scroll
+// themselves, which is why only the first is listed — the same rule as /features and /gallery.
+const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup', '/history', '/legal'];
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -49,6 +52,13 @@ function App() {
 
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+
+          {/* Three paths, one page: /legal opens at the top, /terms and /privacy scroll to
+              their half — the same shape as /features|/gallery|/faq → HomePage. Public on
+              purpose: policies have to be readable before signing up. */}
+          <Route path="/legal" element={<LegalPage />} />
+          <Route path="/terms" element={<LegalPage />} />
+          <Route path="/privacy" element={<LegalPage />} />
 
           {/* The generation endpoints require a token as of Phase 2, so an anonymous
               visitor here would only reach a form whose every submit 401s. */}

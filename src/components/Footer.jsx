@@ -8,6 +8,8 @@ function Footer() {
     '/features': { sectionId: 'features', offset: 16 },
     '/gallery': { sectionId: 'gallery', offset: 16 },
     '/faq': { sectionId: 'faq', offset: 72 },
+    '/terms': { sectionId: 'terms', offset: 16 }, // Both halves of LegalPage live on one page…
+    '/privacy': { sectionId: 'privacy', offset: 16 }, // …so clicking the current one scrolls
   };
 
   const handleFooterNavClick = (event, href) => {
@@ -65,18 +67,24 @@ function Footer() {
         <div>
           <h3 className="text-xl font-semibold">Features</h3>
           <ul className="mt-2 space-y-1.5 text-base text-slate-600">
-            <li>Photo to Ghibli Art</li>
-            <li>Text to Ghibli Art</li>
-            <li>Character Generator</li>
-            <li>Background Generator</li>
+            {/* Were plain <li> text. The two generator links carry no onClick on purpose:
+                handleFooterNavClick compares `pathname !== href` — which is always true for a
+                `?tab=` link — and CreatePage reads the param itself, so the query must survive. */}
+            <li><Link to="/create?tab=photo" className="hover:text-brand-600">Photo to Ghibli Art</Link></li>
+            <li><Link to="/create?tab=text" className="hover:text-brand-600">Text to Ghibli Art</Link></li>
+            {/* No character/background generator exists, so these point at the sections that
+                describe what the app can actually do rather than at a form that cannot. */}
+            <li><Link to="/features" onClick={(event) => handleFooterNavClick(event, '/features')} className="hover:text-brand-600">Character Generator</Link></li>
+            <li><Link to="/gallery" onClick={(event) => handleFooterNavClick(event, '/gallery')} className="hover:text-brand-600">Background Generator</Link></li>
           </ul>
         </div>
 
         <div>
           <h3 className="text-xl font-semibold">Legal</h3>
           <ul className="mt-2 space-y-1.5 text-base text-slate-600">
-            <li><Link to="/home" onClick={(event) => handleFooterNavClick(event, '/home')} className="hover:text-brand-600">Terms of Service</Link></li>
-            <li><Link to="/home" onClick={(event) => handleFooterNavClick(event, '/home')} className="hover:text-brand-600">Privacy Policy</Link></li>
+            {/* Both pointed at /home before — there was no legal page at all. */}
+            <li><Link to="/terms" onClick={(event) => handleFooterNavClick(event, '/terms')} className="hover:text-brand-600">Terms of Service</Link></li>
+            <li><Link to="/privacy" onClick={(event) => handleFooterNavClick(event, '/privacy')} className="hover:text-brand-600">Privacy Policy</Link></li>
           </ul>
         </div>
       </div>

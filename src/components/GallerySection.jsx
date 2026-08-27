@@ -1,8 +1,11 @@
 import animeSceneOne from '../assets/A1.png';
 import animeSceneTwo from '../assets/A2.webp';
-import galleryOne from '../assets/0-2.webp';
-import galleryTwo from '../assets/802816d8d6a0b6cce580c191d75d5a11.jpg';
-import galleryThree from '../assets/fe319a5c-7014-46e5-ab44-5970f31ca1ea-one-piece-background-4k.webp';
+// Repointed: the three files these lines imported (0-2.webp, 802816d8…jpg, fe319a5c…webp) are
+// no longer in src/assets, so the whole app failed to compile with "Module not found". S1–S3
+// were sitting unused in the same folder; swap in replacements to change these tiles back.
+import galleryOne from '../assets/S1.png';
+import galleryTwo from '../assets/S2.png';
+import galleryThree from '../assets/S3.png';
 import galleryFour from '../assets/OIP.webp';
 import mountainLakeOne from '../assets/ML1.jpg';
 import mountainLakeTwo from '../assets/ML2.jpg';

@@ -9,9 +9,9 @@
 import { clearSession, getAuthHeader, markSessionRejected } from './authStorage';
 import { notifyGenerationCreated } from './generationEvents';
 
-// CRA only exposes env vars prefixed with REACT_APP_, and only at build time.
-// import.meta.env / VITE_* do not exist in react-scripts 5.
-export const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
+// Vite exposes env vars prefixed with VITE_ (import.meta.env.VITE_*), inlined
+// at build time -- restart the dev server after editing.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 
 /**
  * The single auth seam, filled in as of Phase 4. Reads the JWT from the session store
@@ -259,7 +259,7 @@ export const MAX_HISTORY_PAGE_SIZE = 100;
 /**
  * GET /api/v1/generations — one page of the caller's own history, newest first.
  *
- * Resolves to the backend's `PageResponse` envelope, exactly these nine fields:
+ * Resolves to the backend's `PageResponse` envelope, exactly these eight fields:
  * `{ content, page, size, totalElements, totalPages, first, last, numberOfElements }`,
  * where each `content` item is a `GenerationSummaryResponse`:
  * `{ id, type, prompt, style, engineId, width, height, imageSizeBytes, createdAt }`.

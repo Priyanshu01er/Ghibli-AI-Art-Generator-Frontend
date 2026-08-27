@@ -13,6 +13,7 @@ import {
   subscribe,
   writeSession,
 } from '../services/authStorage';
+import { clearAllDrafts } from '../services/generationDraftStore'; // Drafts are session-scoped
 
 /**
  * Auth state for the whole app: who is signed in, and the three verbs that change it.
@@ -100,6 +101,9 @@ export function AuthProvider({ children }) {
     // "your session ended" notice meant for a server-rejected token.
     clearSessionRejected();
     clearSession();
+    // The second half of "kept until Create Another or logout": megabytes of generated art
+    // must not be left in localStorage for whoever uses this browser next.
+    clearAllDrafts();
   }, []);
 
   const value = useMemo(
