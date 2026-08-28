@@ -165,7 +165,7 @@ function GallerySection() {
               sideways. No breakpoint makes nowrap safe — even at lg the card is ~416px against
               a ~480px text-3xl string. It scales and wraps instead. */}
           <h3 className="text-xl font-semibold tracking-tight sm:text-2xl lg:text-3xl">
-            Mountain Lake Ghibli Transformation
+            Nature Ghibli Style
           </h3>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             {/* These four were plain <img> tags; they go through the same tile so all eight
@@ -184,7 +184,7 @@ function GallerySection() {
         <article className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-stone-200 sm:p-6 lg:p-8">
           {/* Same nowrap overflow as the card above, same fix. */}
           <h3 className="text-xl font-semibold tracking-tight sm:text-2xl lg:text-3xl">
-            Anime Scene Ghibli Transformation
+            Studio Ghibli Scene
           </h3>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             {animeSceneItems.map((item) => (

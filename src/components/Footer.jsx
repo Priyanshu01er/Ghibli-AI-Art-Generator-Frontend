@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import logoMark from '../assets/logo-mark.png';
 
 function Footer() {
   const { pathname } = useLocation();
@@ -45,9 +46,8 @@ function Footer() {
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
         <div>
           <Link to="/home" onClick={(event) => handleFooterNavClick(event, '/home')} className="flex items-center gap-3">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-stone-100">
-              G
-            </span>
+            {/* Task 1: reuse the same circular brand mark as the header. */}
+            <img src={logoMark} alt="Ghibli AI logo" className="h-8 w-8 rounded-full object-cover" />
             <span className="font-heading text-2xl font-bold">Ghibli AI</span>
           </Link>
           <p className="mt-3 bg-gradient-to-r from-amber-700 via-orange-600 to-rose-600 bg-clip-text text-base font-semibold text-transparent drop-shadow-sm">

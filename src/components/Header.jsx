@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'; // For the menu's open stat
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { navItems } from '../data/homeData';
+import logoMark from '../assets/logo-mark.png';
 
 /**
  * The menu button's glyph: three dots, each with a short line beside it. One icon at every
@@ -137,9 +138,8 @@ function Header() {
           only two things there. gap-3 keeps the wordmark off the menu button at 360px. */}
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-20 sm:px-6 lg:px-8">
         <Link to="/home" className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-glow">
-            G
-          </span>
+          {/* Task 1: circular logo cropped from src/assets/logo.png (cream bg removed). */}
+          <img src={logoMark} alt="Ghibli AI logo" className="h-8 w-8 shrink-0 rounded-full object-cover" />
           {/* text-xl below sm: at text-2xl the wordmark crowded the menu button on a 360px screen. */}
           <span className="truncate font-heading text-xl font-bold tracking-tight sm:text-2xl">
             Ghibli AI
