@@ -267,11 +267,14 @@ function PhotoToArtSection() {
         </div>
 
         {generatedImage ? (
-          <div className="mt-6 flex gap-4">
+          // Stacked below sm: as `flex-1` siblings each button got ~143px of a 303px row while
+          // "Create Another" needs ~188px at text-lg, so the label wrapped mid-word inside the
+          // button. Full width each on a phone, side by side from sm up.
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
             <button
               type="button"
               onClick={handleDownload}
-              className="flex-1 rounded-xl bg-gradient-to-r from-amber-800 to-brand-700 px-6 py-4 text-lg font-semibold text-white shadow-glow transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+              className="flex-1 rounded-xl bg-gradient-to-r from-amber-800 to-brand-700 px-4 py-3.5 text-base font-semibold text-white shadow-glow transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2 sm:px-6 sm:py-4 sm:text-lg"
             >
               <span>⤓</span>
               Download
@@ -279,7 +282,7 @@ function PhotoToArtSection() {
             <button
               type="button"
               onClick={handleCreateAnother}
-              className="flex-1 rounded-xl bg-gradient-to-r from-brand-700 to-amber-800 px-6 py-4 text-lg font-semibold text-white shadow-glow transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+              className="flex-1 rounded-xl bg-gradient-to-r from-brand-700 to-amber-800 px-4 py-3.5 text-base font-semibold text-white shadow-glow transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2 sm:px-6 sm:py-4 sm:text-lg"
             >
               <span>+</span>
               Create Another

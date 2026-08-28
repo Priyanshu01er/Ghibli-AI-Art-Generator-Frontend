@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./src/**/*.{js,jsx,ts,tsx}', './public/index.html'],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'], // ./public/index.html does not exist — Vite serves ./index.html from the project root
   theme: {
     extend: {
       colors: {
@@ -10,6 +10,7 @@ module.exports = {
           500: '#0f766e',
           600: '#0b5f59',
           700: '#084d49',
+          800: '#06403d', // Was missing, so `text-brand-800` in CreatePage silently did nothing
           900: '#032a29',
         },
         accent: {

@@ -46,9 +46,11 @@ function CreatePage() {
       <Header />
 
       <main className="bg-gradient-to-b from-stone-100 via-brand-50/50 to-brand-100/60">
-        <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="mb-8 flex items-center justify-center border-b border-stone-200/80 text-lg font-semibold text-slate-500">
-            <div className="flex gap-8">
+        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
+          {/* gap-8 + text-lg put the two tab labels 32px apart in a 343px row; tighter and one
+              size down below sm so they read as a pair of tabs, not two separate buttons. */}
+          <div className="mb-6 flex items-center justify-center border-b border-stone-200/80 text-base font-semibold text-slate-500 sm:mb-8 sm:text-lg">
+            <div className="flex gap-4 sm:gap-8">
               <button
                 type="button"
                 onClick={() => handleTabClick('photo')}

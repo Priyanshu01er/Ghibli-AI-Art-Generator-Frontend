@@ -40,7 +40,9 @@ function Footer() {
 
   return (
     <footer className="border-t border-brand-100 bg-gradient-to-b from-white/90 to-brand-50/40">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
+      {/* sm:grid-cols-2, not md: four blocks stacked to ~700px of footer on a phone, and there is
+          easily room for two columns from 640px. */}
+      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
         <div>
           <Link to="/home" onClick={(event) => handleFooterNavClick(event, '/home')} className="flex items-center gap-3">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-stone-100">

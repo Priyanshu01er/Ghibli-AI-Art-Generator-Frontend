@@ -168,7 +168,9 @@ function HistoryPage() {
               </div>
 
               {totalPages > 1 ? (
-                <div className="mt-8 flex items-center justify-center gap-4">
+                // flex-wrap: Previous + "Page 1 of 9" + Next is ~330px, just over a 343px phone
+                // column once the gap is counted, so the row needs somewhere to break.
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
                   <button
                     type="button"
                     onClick={previousPage}

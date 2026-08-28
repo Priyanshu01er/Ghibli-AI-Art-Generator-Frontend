@@ -42,8 +42,11 @@
 }
 
 @layer components {
+  /* Was `px-8 py-4 text-xl` flat, so every CTA on the site rendered at desktop size on a phone —
+     a 20px label in a 64px-tall button inside a 343px column. Mobile-first now, stepping up at
+     sm; one edit covers HeroSection and CtaSection both. */
   .btn-brand {
-    @apply inline-flex rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-8 py-4 text-xl font-semibold text-white shadow-[0_12px_28px_rgba(15,118,110,0.32)] transition-all duration-300;
+    @apply inline-flex rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3.5 text-lg font-semibold text-white shadow-[0_12px_28px_rgba(15,118,110,0.32)] transition-all duration-300 sm:px-8 sm:py-4 sm:text-xl;
   }
 
   .btn-brand:hover {

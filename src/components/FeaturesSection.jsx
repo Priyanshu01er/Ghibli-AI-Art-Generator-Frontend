@@ -56,19 +56,21 @@ const featureIcons = [
 
 function FeaturesSection() {
   return (
-    <section id="features" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-      <h2 className="text-center font-heading text-4xl font-bold text-slate-900 sm:text-5xl">Ghibli AI Features</h2>
-      <div className="mt-12 grid gap-6 md:grid-cols-3">
+    <section id="features" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
+      <h2 className="text-center font-heading text-3xl font-bold text-slate-900 sm:text-4xl lg:text-5xl">Ghibli AI Features</h2>
+      <div className="mt-10 grid gap-5 sm:mt-12 sm:gap-6 md:grid-cols-3">
         {featureCards.map((card, index) => (
           <article
             key={card.title}
-            className="rounded-2xl bg-white p-8 shadow-card ring-1 ring-stone-200 transition-transform duration-300 hover:-translate-y-1"
+            className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-stone-200 transition-transform duration-300 hover:-translate-y-1 sm:p-8"
           >
-            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 sm:mb-5">
               {featureIcons[index]}
             </div>
-            <h3 className="text-3xl font-semibold leading-snug text-slate-900">{card.title}</h3>
-            <p className="mt-4 text-lg leading-relaxed text-slate-600">{card.description}</p>
+            {/* text-3xl was the worst offender on a phone: 30px card titles in a stack read as
+                section headings rather than card headings. */}
+            <h3 className="text-xl font-semibold leading-snug text-slate-900 sm:text-2xl">{card.title}</h3>
+            <p className="mt-3 text-base leading-relaxed text-slate-600 sm:mt-4 sm:text-lg">{card.description}</p>
           </article>
         ))}
       </div>
