@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { generateFromText } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext'; // For the userId a stored draft is stamped with
 import { blobToDataUrl, clearDraft, readDraft, writeDraft } from '../services/generationDraftStore';
+import GenerationErrorNotice from './GenerationErrorNotice'; // Same failure vocabulary as the photo tab
 
 function TextToArtSection() {
   const { user } = useAuth();
@@ -12,7 +13,12 @@ function TextToArtSection() {
   const [description, setDescription] = useState(restoredDraft?.prompt ?? '');
   const [generatedImage, setGeneratedImage] = useState(restoredDraft?.dataUrl ?? '');
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  /*
+   * Holds the `ApiError` itself, not a pre-flattened sentence: the notice needs `code` and
+   * `retryable` to pick its wording and decide whether to offer a retry. Client-side guards
+   * below still store a plain string, which `describeGenerationError` renders as-is.
+   */
+  const [generationError, setGenerationError] = useState(null);
   const canGenerate = description.trim().length > 0 && !isLoading;
 
   // The revoke-on-unmount effect is gone with the object URL it guarded: `generatedImage` is a
@@ -25,19 +31,19 @@ function TextToArtSection() {
   const handleDescriptionChange = (event) => {
     setDescription(event.target.value);
 
-    if (errorMessage && event.target.value.trim()) {
-      setErrorMessage('');
+    if (generationError && event.target.value.trim()) {
+      setGenerationError(null);
     }
   };
 
   const handleGenerateClick = async () => {
     if (!description.trim()) {
-      setErrorMessage('Please enter a description for your artwork.');
+      setGenerationError('Please enter a description for your artwork.');
       return;
     }
 
     setIsLoading(true);
-    setErrorMessage('');
+    setGenerationError(null);
 
     try {
       if (generatedImage) {
@@ -58,14 +64,10 @@ function TextToArtSection() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Error generating image from text:', error);
-      // This endpoint used to return an empty 500 body, so the UI could only ever show a
-      // generic line. It now returns a ProblemDetail, so show the real cause when there is
-      // one and keep the original wording for network-level failures.
-      setErrorMessage(
-        error.status !== undefined && error.message
-          ? error.message
-          : 'Failed to generate image. Please ensure backend is running and try again.',
-      );
+      // The error object goes into state untouched. `GenerationErrorNotice` reads the
+      // ProblemDetail `code` off it to name the real cause — an empty Stability balance, a
+      // refused prompt, an outage — which a flattened string had already thrown away.
+      setGenerationError(error);
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +92,7 @@ function TextToArtSection() {
     setGeneratedImage('');
     setDescription('');
     setStyle('general');
-    setErrorMessage('');
+    setGenerationError(null);
     // Scroll to top after resetting for new generation
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -146,7 +148,13 @@ function TextToArtSection() {
           className="min-h-20 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-base text-slate-700 outline-none transition-shadow placeholder:text-slate-400 focus:shadow-[0_0_0_3px_rgba(180,83,9,0.12)]"
           placeholder="Describe the Ghibli scene you want to create in detail..."
         />
-        {errorMessage ? <p className="mt-2 text-sm font-medium text-red-600">{errorMessage}</p> : null}
+        {/* Retry calls the same handler, so it re-reads the live prompt and style rather than
+            replaying the request that just failed. The draft is untouched either way. */}
+        <GenerationErrorNotice
+          error={generationError}
+          onRetry={handleGenerateClick}
+          isRetrying={isLoading}
+        />
       </div>
 
       {!generatedImage ? (

@@ -49,15 +49,22 @@ export function setUnauthorizedHandler(handler) {
  * `errors` is the per-field map that `GlobalExceptionHandler.handleMethodArgumentNotValid`
  * attaches to a 400 — `{ email: 'must be a well-formed email address', ... }` — which is
  * what lets the auth forms mark the offending input rather than only showing a banner.
+ *
+ * `code`, `retryable` and `retryAfterSeconds` are the extra ProblemDetail properties
+ * `handleStabilityApiException` attaches — see `utils/generationErrors.js` for why status
+ * alone is not enough to tell an empty Stability balance from an outage.
  */
 export class ApiError extends Error {
-  constructor(message, { status, detail, title, errors } = {}) {
+  constructor(message, { status, detail, title, errors, code, retryable, retryAfterSeconds } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.detail = detail;
     this.title = title;
     this.errors = errors;
+    this.code = code; // e.g. 'stability_credits_exhausted'; undefined for every other failure
+    this.retryable = retryable; // Only the backend knows whether the same request could work
+    this.retryAfterSeconds = retryAfterSeconds; // Drives the countdown on a 429
   }
 }
 
@@ -101,6 +108,15 @@ async function readProblem(response) {
     errors:
       problem?.errors && typeof problem.errors === 'object' && !Array.isArray(problem.errors)
         ? problem.errors
+        : undefined,
+    // Type-checked rather than passed through: an older backend, a proxy error page or a
+    // gateway can all put something unexpected in these keys, and `describeGenerationError`
+    // must fall back to the generic wording in that case instead of rendering `[object Object]`.
+    code: typeof problem?.code === 'string' ? problem.code : undefined,
+    retryable: typeof problem?.retryable === 'boolean' ? problem.retryable : undefined,
+    retryAfterSeconds:
+      Number.isInteger(problem?.retryAfterSeconds) && problem.retryAfterSeconds > 0
+        ? problem.retryAfterSeconds
         : undefined,
   };
 }
@@ -166,6 +182,9 @@ async function performRequest(
       detail: problem.detail ?? problem.message,
       title: problem.title,
       errors: problem.errors,
+      code: problem.code, // Set only by the Stability handler; every other failure leaves it undefined
+      retryable: problem.retryable,
+      retryAfterSeconds: problem.retryAfterSeconds,
     });
   }
 

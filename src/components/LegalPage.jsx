@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import legalHeroArt from '../assets/L1.png'; // The three assets added for this page
 import termsArt from '../assets/L2.webp';
@@ -16,10 +15,10 @@ import Header from './Header';
 /**
  * The page behind the two footer links that used to point at /home.
  *
- * Three routes render this one file — /legal opens at the top, /terms and /privacy scroll to
- * their own half — which is the shape /features, /gallery and /faq already use for HomePage,
- * rather than a second convention invented here. Public on purpose: a policy you have to sign
- * up to read is not a policy.
+ * Three routes render this one file — /legal, /terms and /privacy all open at the top of the
+ * page (App.jsx's SCROLL_TO_TOP_ROUTES resets the scroll for each); the hero's pill buttons and
+ * the footer links still jump to a half when you are already on the page. Public on purpose: a
+ * policy you have to sign up to read is not a policy.
  *
  * The copy lives in `data/legalData.js`, next to `homeData.js`, so this file stays layout.
  */
@@ -99,14 +98,14 @@ function StorageColumn({ title, items, tone }) {
 function LegalPage() {
   const { pathname } = useLocation();
 
-  // Arriving on /terms or /privacy lands on that half; /legal is scrolled to the top by App.
-  useEffect(() => {
-    scrollToSection(pathname);
-  }, [pathname]);
+  // No mount-time auto-scroll: /terms and /privacy now open at the top of the page like /legal.
+  // (This effect used to smooth-scroll straight to the "Part one"/"Part two" section, which hid
+  // the hero.) Same-page jumps still work — the footer and the hero pills call scrollToSection
+  // directly from their click handlers below.
 
   /**
-   * Clicking the pill for the half you are already on does not change `pathname`, so the
-   * effect above never re-runs — scroll from here instead, exactly as the footer links do.
+   * Clicking the pill for the half you are already on does not change `pathname`, so this
+   * scroll is what lands you on that half — the same behavior the footer links rely on.
    */
   const handleJumpClick = (event, href) => {
     if (pathname !== href) {

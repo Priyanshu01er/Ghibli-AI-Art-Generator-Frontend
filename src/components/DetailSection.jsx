@@ -38,10 +38,12 @@ function DetailSection() {
         </ul>
       </div>
 
-      {/* The other grid column is a heading, a paragraph and three cards, so on a laptop this
-          row is ~900px tall and `h-full object-cover` cropped the artwork to a sliver. Capped
-          height here, and a fixed height below lg where the figure is not stretched at all. */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-200 via-orange-100 to-orange-300 p-3 shadow-card sm:p-4 lg:max-h-[680px]">
+      {/* Grid items stretch by default, so dropping the old lg:max-h-[680px] cap lets this
+          figure grow to the full row height. The artwork's bottom edge now lines up with the
+          bottom of the "Ghibli Character Integration" card instead of stopping short. */}
+      <div className="relative h-full overflow-hidden rounded-3xl bg-gradient-to-br from-amber-200 via-orange-100 to-orange-300 p-3 shadow-card sm:p-4">
+        {/* lg:h-full stretches the artwork through the now taller wrapper; object-cover crops
+            the sides gracefully instead of distorting the art. */}
         <img
           src={photoToGhibliImage}
           alt="Main showcase"

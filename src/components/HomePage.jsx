@@ -8,6 +8,7 @@ import Footer from './Footer';
 import GallerySection from './GallerySection';
 import Header from './Header';
 import HeroSection from './HeroSection';
+import InspirationSection from './InspirationSection'; // Quotes + the H1–H4 landscapes
 
 function HomePage() {
   const { pathname } = useLocation();
@@ -48,6 +49,9 @@ function HomePage() {
         <FeaturesSection />
         <GallerySection />
         <DetailSection />
+        {/* Between the product story and the FAQ: it reads as the emotional close of the pitch
+            and gives the page a breath before a wall of questions. Nothing above or below moved. */}
+        <InspirationSection />
         <FaqSection />
         <CtaSection />
       </main>

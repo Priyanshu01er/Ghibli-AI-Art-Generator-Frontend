@@ -15,9 +15,9 @@ import SignupPage from './components/SignupPage';
  * HomePage. HomePage owns its own scroll behaviour via the route→section map it shares
  * with Header and Footer, so those paths must not be forced to the top from here.
  */
-// /legal is the top of the legal page; /terms and /privacy are sections of it and scroll
-// themselves, which is why only the first is listed — the same rule as /features and /gallery.
-const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup', '/history', '/legal'];
+// /legal is the top of the legal page; /terms and /privacy are the other two routes onto the
+// same page and also open at the top now — jumping to a half is a same-page click only.
+const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup', '/history', '/legal', '/terms', '/privacy'];
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -53,9 +53,8 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
 
-          {/* Three paths, one page: /legal opens at the top, /terms and /privacy scroll to
-              their half — the same shape as /features|/gallery|/faq → HomePage. Public on
-              purpose: policies have to be readable before signing up. */}
+          {/* Three paths, one page: each opens at the top, and the hero pills / footer links
+              scroll to the Terms or Privacy half only via their same-page click handlers. */}
           <Route path="/legal" element={<LegalPage />} />
           <Route path="/terms" element={<LegalPage />} />
           <Route path="/privacy" element={<LegalPage />} />

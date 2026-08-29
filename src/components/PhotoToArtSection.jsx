@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { generateFromPhoto } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext'; // For the userId a stored draft is stamped with
 import { blobToDataUrl, clearDraft, readDraft, writeDraft } from '../services/generationDraftStore';
+import GenerationErrorNotice from './GenerationErrorNotice'; // Same failure vocabulary as the text tab
 
 function PhotoToArtSection() {
   const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
@@ -18,7 +19,12 @@ function PhotoToArtSection() {
   const [description, setDescription] = useState(restoredDraft?.prompt ?? ''); // Prompt comes back too
   const [generatedImage, setGeneratedImage] = useState(restoredDraft?.dataUrl ?? ''); // …with the art
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  /*
+   * The `ApiError` itself, not a formatted sentence — the notice switches on its `code` and
+   * `retryable`. The upload-size and missing-field guards still store plain strings, which
+   * `describeGenerationError` passes straight through with no title and no retry button.
+   */
+  const [generationError, setGenerationError] = useState(null);
   const fileInputRef = useRef(null);
   const canTransform = Boolean(selectedImage) && description.trim().length > 0 && !isLoading;
 
@@ -69,7 +75,7 @@ function PhotoToArtSection() {
       }
       setSelectedImage(null);
       setSelectedPreviewImage('');
-      setErrorMessage('Image is too large. Please select an image up to 5MB.');
+      setGenerationError('Image is too large. Please select an image up to 5MB.');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -88,32 +94,32 @@ function PhotoToArtSection() {
     setSelectedImage(file);
     setSelectedPreviewImage(file ? URL.createObjectURL(file) : '');
 
-    if (errorMessage && file) {
-      setErrorMessage('');
+    if (generationError && file) {
+      setGenerationError(null);
     }
   };
 
   const handleDescriptionChange = (event) => {
     setDescription(event.target.value);
 
-    if (errorMessage && event.target.value.trim()) {
-      setErrorMessage('');
+    if (generationError && event.target.value.trim()) {
+      setGenerationError(null);
     }
   };
 
   const handleTransformClick = async () => {
     if (!selectedImage) {
-      setErrorMessage('Please upload an image before transforming.');
+      setGenerationError('Please upload an image before transforming.');
       return;
     }
 
     if (!description.trim()) {
-      setErrorMessage('Please add additional details for better results.');
+      setGenerationError('Please add additional details for better results.');
       return;
     }
 
     setIsLoading(true);
-    setErrorMessage('');
+    setGenerationError(null);
 
     try {
       if (generatedImage) {
@@ -131,15 +137,10 @@ function PhotoToArtSection() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Error generating image:', error);
-      // Keep the existing wording. `error.message` is now the ProblemDetail `detail`
-      // from the backend instead of the raw text/plain body.
-      const message =
-        error.status !== undefined
-          ? `Network response was not ok. Status: ${error.status}. Message: ${error.message}`
-          : error instanceof Error
-            ? error.message
-            : 'Failed to generate image.';
-      setErrorMessage(message);
+      // Stored as-is rather than formatted into "Network response was not ok. Status: 502…",
+      // which was the same sentence for an empty balance, a refused prompt and an outage.
+      // `GenerationErrorNotice` reads the ProblemDetail `code` and says which one it was.
+      setGenerationError(error);
     } finally {
       setIsLoading(false);
     }
@@ -168,7 +169,7 @@ function PhotoToArtSection() {
     setSelectedImage(null);
     setSelectedPreviewImage('');
     setDescription('');
-    setErrorMessage('');
+    setGenerationError(null);
 
     // Reset the hidden file input so the same image can be selected again.
     if (fileInputRef.current) {
@@ -250,7 +251,13 @@ function PhotoToArtSection() {
         >
           {isLoading ? 'Transforming...' : 'Transform to Ghibli Art'}
         </button>
-        {errorMessage ? <p className="mt-3 text-sm font-medium text-red-600">{errorMessage}</p> : null}
+        {/* Retry re-enters the same handler, so the current upload and prompt are used — both
+            survive the failure, which is what the notice's copy promises. */}
+        <GenerationErrorNotice
+          error={generationError}
+          onRetry={handleTransformClick}
+          isRetrying={isLoading}
+        />
       </div>
 
       <div className="rounded-3xl bg-white p-5 shadow-card ring-1 ring-stone-200 sm:p-6">
