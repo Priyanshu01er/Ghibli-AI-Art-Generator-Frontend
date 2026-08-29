@@ -11,7 +11,26 @@ import { notifyGenerationCreated } from './generationEvents';
 
 // Vite exposes env vars prefixed with VITE_ (import.meta.env.VITE_*), inlined
 // at build time -- restart the dev server after editing.
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
+//
+// This is the ONE value a deployment has to set. On Vercel it is a project Environment
+// Variable pointing at the Render service, e.g. https://ghbliai-be.onrender.com with no
+// trailing slash. A real environment variable wins over the git-ignored local .env file,
+// so nothing here needs editing to deploy.
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL;
+
+// A production build with the variable unset would inline 'http://localhost:8080' into the
+// bundle, and every call would then be aimed at the visitor's own machine -- surfacing as a
+// connection or CORS error that says nothing about the real cause. Fail loudly at load time
+// instead of leaving that to be diagnosed from the network tab.
+if (import.meta.env.PROD && !configuredBaseUrl) {
+  console.error(
+    '[ghbli] VITE_API_BASE_URL was not set at build time, so this build talks to ' +
+      'http://localhost:8080. Set it in the Vercel project settings, then redeploy.',
+  );
+}
+
+// Trailing slashes stripped once here, because every path below starts with '/'.
+export const API_BASE_URL = (configuredBaseUrl || 'http://localhost:8080').replace(/\/+$/, '');
 
 /**
  * The single auth seam, filled in as of Phase 4. Reads the JWT from the session store
