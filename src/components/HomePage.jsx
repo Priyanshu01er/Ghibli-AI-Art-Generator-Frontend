@@ -9,9 +9,15 @@ import GallerySection from './GallerySection';
 import Header from './Header';
 import HeroSection from './HeroSection';
 import InspirationSection from './InspirationSection'; // Quotes + the H1–H4 landscapes
+import useBackendWakeUp from '../hooks/useBackendWakeUp'; // Starts the free-tier instance waking
 
 function HomePage() {
   const { pathname } = useLocation();
+
+  // No argument: this page submits nothing, so it only wants the wake, not the notice. Landing
+  // here is the earliest the app knows a visitor exists, and it buys the ~60s cold start the
+  // time they spend reading — by the time they reach Sign up the instance is usually already up.
+  useBackendWakeUp();
 
   useEffect(() => {
     const routeMap = {

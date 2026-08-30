@@ -15,6 +15,8 @@
 /**
  * Keyed by the backend's `code`, which is a stable identifier and never localised — matching
  * on `detail` text instead would break the moment someone rewords a sentence in the enum.
+ * One entry (`client_timeout`) is raised by the client itself; it is keyed the same way so it
+ * needs no separate branch below.
  *
  * `tone` picks the visual treatment: 'soft' (amber) for a transient upstream condition that
  * says nothing about what the user did, 'hard' (red) for something that needs a real decision
@@ -62,6 +64,20 @@ const FAILURE_DESCRIPTORS = {
     message: 'Stability AI returned an unexpected error, so the artwork could not be generated.',
     hint: 'Try again; if it keeps happening the server log has the upstream response.',
     tone: 'hard',
+  },
+  /**
+   * The one code in this map that is *not* from the backend — `apiClient.performRequest` raises
+   * it when its own 120s timer fires, because a request that never got a reply has no
+   * ProblemDetail to read a code out of. It lives here rather than in the component so a
+   * timeout reads the same on both create tabs, like every other cause.
+   */
+  client_timeout: {
+    title: 'Ghibli AI did not answer in time',
+    message:
+      'The request was given up on after two minutes. The API runs on a free Render instance that ' +
+      'spins down when idle, so the first request after a quiet spell can be very slow.',
+    hint: 'Wait a few seconds and try again — the second attempt usually goes through.',
+    tone: 'soft', // Nothing the user did, and nothing to fix: the same request may well work
   },
 };
 

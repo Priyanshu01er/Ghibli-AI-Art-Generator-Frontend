@@ -3,6 +3,8 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { clearSessionRejected, peekSessionRejected } from '../services/authStorage';
 import { resolveRedirect } from '../utils/authRedirect';
+import useBackendWakeUp from '../hooks/useBackendWakeUp'; // Wake on mount + the slow-submit notice
+import ColdStartNotice from './ColdStartNotice';
 import Footer from './Footer';
 import Header from './Header';
 
@@ -23,6 +25,10 @@ function LoginPage() {
    * which keeps this safe to call from an initialiser that StrictMode runs twice.
    */
   const [sessionExpired] = useState(() => peekSessionRejected());
+
+  // Pings /actuator/health on mount, and reports back once a submit has been running long
+  // enough to be worth explaining. Taking `isSubmitting` as input keeps handleSubmit untouched.
+  const isWaking = useBackendWakeUp(isSubmitting);
 
   const redirectTo = resolveRedirect(location.state);
   const canSubmit = email.trim().length > 0 && password.length > 0 && !isSubmitting;
@@ -134,6 +140,10 @@ function LoginPage() {
               >
                 {isSubmitting ? 'Signing in...' : 'Sign in'}
               </button>
+
+              {/* Below the button, where the eye already is after clicking it. Mutually
+                  exclusive with formError in practice: this only shows while submitting. */}
+              {isWaking ? <ColdStartNotice /> : null}
 
               {formError ? <p className="mt-3 text-sm font-medium text-red-600">{formError}</p> : null}
             </form>

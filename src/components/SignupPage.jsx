@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { resolveRedirect } from '../utils/authRedirect';
+import useBackendWakeUp from '../hooks/useBackendWakeUp'; // Wake on mount + the slow-submit notice
+import ColdStartNotice from './ColdStartNotice';
 import Footer from './Footer';
 import Header from './Header';
 
@@ -28,6 +30,10 @@ function SignupPage() {
   const [formError, setFormError] = useState('');
   const [errorStatus, setErrorStatus] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+
+  // Same pair as LoginPage: one ping on mount, plus the notice once a submit runs long. The
+  // timer lives in the hook, which is why this page still needs no useEffect of its own.
+  const isWaking = useBackendWakeUp(isSubmitting);
 
   const redirectTo = resolveRedirect(location.state);
   const canSubmit =
@@ -154,6 +160,9 @@ function SignupPage() {
               >
                 {isSubmitting ? 'Creating account...' : 'Create account'}
               </button>
+
+              {/* Same placement as LoginPage, so the two forms behave identically when slow. */}
+              {isWaking ? <ColdStartNotice /> : null}
 
               {formError ? (
                 <div className="mt-3">

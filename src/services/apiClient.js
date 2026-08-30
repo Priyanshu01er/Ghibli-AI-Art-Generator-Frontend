@@ -149,6 +149,24 @@ async function readProblem(response) {
 const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please log in again.';
 
 /**
+ * Ceiling on a single request. `fetch` has no default timeout at all, so before this the only
+ * limit was the browser's (~300s in Chrome) — a dead backend produced a five-minute spinner
+ * with nothing on screen to explain it.
+ *
+ * 120s and not 30s on purpose: a real SDXL generation legitimately takes 20–60 seconds, and on
+ * Render's free tier the first request after an idle spell also waits ~60s for the instance to
+ * wake. This exists to end a hang, not to police latency.
+ */
+export const REQUEST_TIMEOUT_MS = 120_000;
+
+/** Only asks "are you up yet?", so it must not sit there for the full request ceiling. */
+const WARM_UP_TIMEOUT_MS = 8_000;
+
+/** Shown for a client-side timeout. Names the cause, because "failed" would not. */
+const TIMEOUT_MESSAGE =
+  'Ghibli AI did not answer in time. The server may still be waking up — please try again.';
+
+/**
  * Shared request path: injects auth headers, converts failures to ApiError, and
  * centralises the 401 → sign-out decision.
  *
@@ -164,58 +182,138 @@ const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please log in again.'
  *               The rejection is a DOMException named 'AbortError', NOT an ApiError —
  *               callers must check for it before showing an error, and the history hook
  *               and image loader both do.
+ * @param timeoutMs overrides REQUEST_TIMEOUT_MS for one call. Only `warmUpBackend` does.
  */
 async function performRequest(
   path,
-  { method = 'POST', headers = {}, body, auth = true, parse = 'blob', signal } = {},
-) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers: auth ? { ...headers, ...buildAuthHeaders() } : { ...headers },
+  {
+    method = 'POST',
+    headers = {},
     body,
+    auth = true,
+    parse = 'blob',
     signal,
-  });
+    timeoutMs = REQUEST_TIMEOUT_MS,
+  } = {},
+) {
+  // `fetch` accepts exactly one signal, but a request now has two reasons to end early: the
+  // timer below, and the caller unmounting. So one controller owns the fetch and both feed it.
+  const controller = new AbortController();
+  let timedOut = false; // Tells our abort apart from the caller's — they must render differently
 
-  if (!response.ok) {
-    const problem = await readProblem(response);
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
 
-    // 401 only. A 403 from `handleAccessDenied` means the token is valid and the caller
-    // simply may not have this resource — clearing the session there would send the user
-    // through a pointless re-login that changes nothing.
-    const sessionRejected = response.status === 401 && auth;
+  // Forwarded, not replaced: `useGenerationHistory` and `GenerationCard` both rely on their own
+  // signal still cancelling the request, and an already-aborted one must not start a fetch.
+  const forwardAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener('abort', forwardAbort);
+    }
+  }
 
-    if (sessionRejected) {
-      // Before clearSession: clearing notifies subscribers, which can navigate away
-      // synchronously, and the destination reads this flag as it renders.
-      markSessionRejected();
-      clearSession();
-      if (unauthorizedHandler) {
-        unauthorizedHandler();
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: auth ? { ...headers, ...buildAuthHeaders() } : { ...headers },
+      body,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const problem = await readProblem(response);
+
+      // 401 only. A 403 from `handleAccessDenied` means the token is valid and the caller
+      // simply may not have this resource — clearing the session there would send the user
+      // through a pointless re-login that changes nothing.
+      const sessionRejected = response.status === 401 && auth;
+
+      if (sessionRejected) {
+        // Before clearSession: clearing notifies subscribers, which can navigate away
+        // synchronously, and the destination reads this flag as it renders.
+        markSessionRejected();
+        clearSession();
+        if (unauthorizedHandler) {
+          unauthorizedHandler();
+        }
       }
+
+      throw new ApiError(sessionRejected ? SESSION_EXPIRED_MESSAGE : problem.message, {
+        status: response.status,
+        // `detail` keeps the backend's own wording even when the message above is
+        // overridden, so nothing is lost for logging.
+        detail: problem.detail ?? problem.message,
+        title: problem.title,
+        errors: problem.errors,
+        code: problem.code, // Set only by the Stability handler; every other failure leaves it undefined
+        retryable: problem.retryable,
+        retryAfterSeconds: problem.retryAfterSeconds,
+      });
     }
 
-    throw new ApiError(sessionRejected ? SESSION_EXPIRED_MESSAGE : problem.message, {
-      status: response.status,
-      // `detail` keeps the backend's own wording even when the message above is
-      // overridden, so nothing is lost for logging.
-      detail: problem.detail ?? problem.message,
-      title: problem.title,
-      errors: problem.errors,
-      code: problem.code, // Set only by the Stability handler; every other failure leaves it undefined
-      retryable: problem.retryable,
-      retryAfterSeconds: problem.retryAfterSeconds,
+    if (parse === 'none') {
+      return null;
+    }
+
+    // Awaited rather than returned bare, so the `finally` below cannot clear the timer before
+    // the body has finished arriving — a stalled download is a hang too.
+    if (parse === 'json') {
+      return await response.json();
+    }
+
+    return await response.blob();
+  } catch (error) {
+    // Our own abort surfaces as an AbortError, and both `useGenerationHistory` and
+    // `GenerationCard` deliberately swallow those — so leaving it one would turn a 120s wait
+    // into silence, which is worse than the hang. A `code` with no `status` is what routes it
+    // to its own notice in `describeGenerationError` instead of the generic offline copy.
+    if (timedOut && error?.name === 'AbortError') {
+      throw new ApiError(TIMEOUT_MESSAGE, { code: 'client_timeout', retryable: true });
+    }
+    throw error; // A caller abort stays a DOMException, exactly as every call site expects
+  } finally {
+    clearTimeout(timer);
+    if (signal) {
+      signal.removeEventListener('abort', forwardAbort);
+    }
+  }
+}
+
+/**
+ * GET /actuator/health — fired on mount by Home, Login and Signup (see `useBackendWakeUp`).
+ *
+ * The API runs on Render's free tier, which spins the instance down after 15 minutes of no
+ * traffic and takes about a minute to bring it back. This ping starts that wake while the
+ * visitor is still reading the page, so by the time they submit a form the instance is usually
+ * up. It cannot prevent the spin-down — only continuous traffic does that.
+ *
+ * Two constraints that are not cosmetic:
+ *  - **No headers at all.** No Content-Type and no Authorization keeps this a CORS-*simple*
+ *    request, so it costs one round trip instead of a preflight plus a round trip.
+ *  - **`auth: false`.** A 401 from a health check must never clear the session; that path is
+ *    only correct for a request that actually carried a token.
+ *
+ * @returns true if the instance answered, false otherwise. Never throws — a cold instance
+ *   failing this ping is the expected case, not an error anyone should see.
+ */
+export async function warmUpBackend() {
+  try {
+    await performRequest('/actuator/health', {
+      method: 'GET',
+      headers: {}, // Deliberately empty — see above
+      auth: false,
+      parse: 'json',
+      timeoutMs: WARM_UP_TIMEOUT_MS,
     });
+    return true;
+  } catch {
+    return false;
   }
-
-  if (parse === 'none') {
-    return null;
-  }
-
-  if (parse === 'json') {
-    return response.json();
-  }
-
-  return response.blob();
 }
 
 /** POST /api/v1/generate — multipart photo-to-art. Resolves to an image/png Blob. */
