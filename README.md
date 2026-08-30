@@ -412,10 +412,15 @@ page 0**, since prepending a new row to page 3 would be a lie.
 [`utils/generationLabels.js`](src/utils/generationLabels.js) holds every user-facing string that
 describes a generation, so the Create result, the history card and the gallery tiles cannot disagree:
 
-- `typeLabel` — `PHOTO_TO_IMAGE` → "Photo to Art", `TEXT_TO_IMAGE` → "Text to Art".
-- `styleLabel` — resolves a style **only for `TEXT_TO_IMAGE`**. Photo rows carry the `anime` preset
-  the backend hardcodes for that flow, so mapping them would print "My Neighbor Totoro" under a photo
-  the user never labelled. Returning nothing is correct; the card just omits the segment.
+- `typeLabel` — `IMAGE_TO_IMAGE` → "Photo to Art", `TEXT_TO_IMAGE` → "Text to Art". An unknown
+  value falls through to `humanise`, so a type this app has not heard of still reads as words.
+- `styleLabel` — the six film names (*Spirited Away*, *My Neighbor Totoro*, …) are applied **only to
+  `TEXT_TO_IMAGE`**, because those are the labels the user actually picked from the dropdown. The
+  backend hardcodes `style_preset = "anime"` for every photo request, so running a photo row through
+  the same map would print "My Neighbor Totoro" under an image nobody labelled that. Photo rows fall
+  through to `humanise(style)` instead — which is why S6, S10 and S11 all show Photo to Art cards
+  reading a plain **"Anime"**: the preset that was applied, stated as itself, not a film title
+  implying a choice.
 - `formatBytes` — checks for `null`/`undefined` explicitly rather than truthiness, so a legitimate
   `0` renders as `0 B` instead of disappearing.
 - `downloadFilename` — builds the saved name in the browser. The bytes arrive as `image/png` with a
@@ -437,12 +442,382 @@ is no dark mode.
 | `shadow-glow` | `0 18px 40px rgba(15,118,110,0.25)` | Primary buttons and the featured image — brand-tinted, so it reads as light rather than shadow |
 | `font-heading` | Sora | Headings only; body copy is Manrope |
 
-<!--APPEND-->
+Two component classes in [`src/index.css`](src/index.css) carry the shapes that repeat:
 
+- **`.btn-brand`** — every primary call to action. Mobile-first on purpose: it used to be a flat
+  `px-8 py-4 text-xl`, which put a 20px label in a 64px-tall button inside a 343px phone column. It
+  now steps up at `sm`, so one edit covers the hero and the closing CTA together. The header's
+  **Sign up** overrides the padding and size explicitly, because a page-sized CTA in a 72px-tall
+  header is a different job.
+- **`.glass-panel`** — `border-white/70 bg-white/65 backdrop-blur-md`. Used by the sticky header and
+  by the three hero pills, so page content stays faintly visible through them. Deliberately *not*
+  used by the account dropdown: a 65%-opaque menu over a busy page is unreadable, so that one is
+  solid white.
 
+Two z-index values and a scroll offset are the whole layering story. The header is `sticky top-0
+z-50`; both lightboxes — the gallery's and the one behind a history card — sit at `z-[60]` so they
+cover it; and anything that a native anchor jump can land on carries `scroll-mt-24` so the header
+does not hide the heading it just scrolled to.
 
+Three things are set once in `@layer base` and never repeated: `scroll-behavior: smooth` on `html`
+(which is what makes `/features` and `/faq` glide rather than jump), the two-radial-plus-linear
+gradient wash that every page floats on, and the type split — Sora on `h1`–`h6` and `.font-heading`
+at `letter-spacing: -0.02em`, Manrope on everything else.
 
+Nothing is themed at runtime, and there is no dark mode. The table above is the whole palette.
 
+## Tech stack
 
+| Package | Version | What it does here |
+| --- | --- | --- |
+| `react` / `react-dom` | 19.2.5 | Function components and hooks only — no class components anywhere |
+| `react-router-dom` | 7.14.1 | The thirteen routes, `ProtectedRoute`, and the `state.from` handoff that returns you to the page you were bounced off |
+| `vite` | 5.4.11 | Dev server and build. **Not Create React App** — see below |
+| `@vitejs/plugin-react` | 4.3.4 | JSX transform and Fast Refresh |
+| `tailwindcss` | 3.4.13 | All styling, plus the token set above |
+| `postcss` / `autoprefixer` | 8.5.9 / 10.5.0 | Tailwind's own pipeline |
+| `vitest` | 2.1.8 | Test runner, configured in [`vitest.config.mjs`](vitest.config.mjs) |
+| `jsdom` | 25.0.1 | The DOM the tests run against |
+| `@testing-library/react` + `jest-dom` | 16.3.2 / 6.9.1 | Queries by role and text, and the `toBeInTheDocument` family |
 
+**This app is not Create React App.** There is no `react-scripts` in `package.json` and no
+`REACT_APP_` variable anywhere; the entry point is [`index.html`](index.html) at the project root
+rather than `public/index.html`, and configuration is read through `import.meta.env.VITE_*`, which
+Vite inlines at build time. Anything you have read elsewhere about `REACT_APP_API_BASE_URL` is about
+a version of this project that no longer exists.
 
+Four dependencies this app deliberately does **not** have:
+
+- **No axios or data-fetching library.** One `fetch` wrapper,
+  [`services/apiClient.js`](src/services/apiClient.js), is the only thing that talks to the API — so
+  there is exactly one place that attaches the token and exactly one place that understands the
+  backend's `ProblemDetail` bodies.
+- **No state library.** Auth lives in one context; everything else is component state plus the three
+  plain modules in `services/`. Nothing here needed a store.
+- **No component library.** Every card, tab, dropdown and lightbox in the screenshots below is
+  Tailwind on plain elements, which is why the palette stays this small.
+- **No icon package.** The icons are inline `<svg>` at `strokeWidth="1.8"`, so they inherit
+  `currentColor` and ship no extra bytes.
+
+## Setup
+
+Node 18 or newer. Two commands from this folder:
+
+```bash
+npm install
+npm run dev
+```
+
+That serves the app on **http://localhost:3000**.
+
+The port is pinned in [`vite.config.mjs`](vite.config.mjs) and the choice is not cosmetic: the
+backend's CORS default is `http://localhost:3000,http://127.0.0.1:3000`
+(`SecurityConfig.DEFAULT_ALLOWED_ORIGINS`). Vite's own default 5173 is deliberately absent from that
+list, so a dev server on 5173 would be blocked by the browser on every call with a CORS error that
+says nothing about a port.
+
+### The one variable
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | `http://localhost:8080` | Origin of the backend, no trailing slash |
+
+Put it in a `.env` (git-ignored) for local work:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+Three things about it that are easy to get wrong:
+
+- **The `VITE_` prefix is mandatory.** Vite only exposes variables that start with it. A variable
+  named `API_BASE_URL` is not a typo that fails loudly — it is simply invisible, and the app falls
+  back to localhost.
+- **It is inlined at build time, not read at runtime.** Editing `.env` needs a dev-server restart;
+  changing it on Vercel needs a **redeploy**.
+- **A production build with it unset still builds.** It would bake `http://localhost:8080` into the
+  bundle and aim every call at the visitor's own machine. `apiClient.js` therefore logs a loud
+  `console.error` at load time when `import.meta.env.PROD` is true and the variable is missing,
+  rather than leaving that to be worked out from the network tab.
+
+The API itself — how to run it, what it stores, what each endpoint returns — is in
+[the backend README](../ghbliapi/README.md#local-setup). This app needs nothing from it but a URL.
+
+## Tests and build
+
+```bash
+npm test          # vitest run — one pass, then exit
+npm run test:watch
+npm run build     # vite build → dist/
+```
+
+The runner is configured in [`vitest.config.mjs`](vitest.config.mjs) rather than in
+`vite.config.mjs`: `environment: 'jsdom'`, `globals: true` so `test`/`expect` need no import, and
+`setupFiles: './src/setupTests.js'`, which is the single line that pulls in
+`@testing-library/jest-dom` and gives every file `toBeInTheDocument`.
+
+Two suites, both sitting flat at `src/*.test.jsx`:
+
+- **[`App.test.jsx`](src/App.test.jsx)** renders the whole `<App />` — router, `AuthProvider` and
+  all — and asserts the hero heading is on screen. It is short, and it is the most useful test in
+  the repo: it fails the moment a provider is nested wrongly, a route throws on mount, or a hook
+  breaks the initial render of the default route.
+- **[`GenerationErrorNotice.test.jsx`](src/GenerationErrorNotice.test.jsx)** — six tests over the
+  seven-way failure notice, and they assert the two *decisions* it makes rather than its pixels:
+  which cause it names, and whether it offers a retry. An exhausted balance is named and offers **no
+  button** (retrying cannot work). A 429 offers one reading `Try again in 12s`, **disabled**, because
+  retrying inside the window extends the limit. A 503 offers an immediate retry. A plain validation
+  string stays a bare sentence with no heading and no button, so a client-side mistake is not dressed
+  up as an API failure. An unrecognised `stability_*` code falls back to the backend's own detail and
+  is still retryable. And a bare `TypeError: Failed to fetch` — no `status` at all — reads as
+  "Cannot reach Ghibli AI". Its docblock says why it exists: the manual equivalent would need a
+  Stability key with an empty balance, which is not something you can arrange on demand.
+
+`npm run build` type-checks nothing — there is no TypeScript here — but it does fail on an
+unresolved import, and it is the only place the production `import.meta.env.PROD` branch in
+[`apiClient.js`](src/services/apiClient.js) is actually compiled. Run it before pushing; a broken
+import that Vite's dev server papers over with an on-demand reload will stop a Vercel deploy.
+
+## Deployment
+
+The front end is a static bundle on **Vercel**; the API is a Docker service on **Render**; the
+database is **MongoDB Atlas**. Three providers, one HTTP contract between them.
+
+| Setting | Value |
+| --- | --- |
+| Framework preset | Vite |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Environment variable | `VITE_API_BASE_URL` → the Render origin, no trailing slash |
+
+[`vercel.json`](vercel.json) is nineteen lines and every one of them earns its place:
+
+- **The SPA rewrite** — `/(.*)` → `/index.html`. This is what makes a refresh on `/create` work.
+  Without it Vercel looks for a file at that path, finds none and serves its own 404: the router
+  never gets a chance to run, because the router only exists inside `index.html`. Every deep link
+  in this app — `/history`, `/privacy`, a shared `/gallery` URL — depends on this one line.
+- **`/assets/*` → `max-age=31536000, immutable`.** Safe precisely *because* Vite content-hashes those
+  filenames, so a changed file is a changed URL and a year-long cache can never go stale.
+- **`index.html` → `max-age=0, must-revalidate`.** The one file that must not be cached, since it
+  carries the `<script src>` pointing at the current hashed bundle. Cache it and a returning visitor
+  loads yesterday's app.
+
+`VITE_API_BASE_URL` is read at **build** time, not at runtime — Vite inlines it into the bundle.
+Changing it in the Vercel dashboard therefore does nothing until you **redeploy**. There is no
+runtime config file to edit and no window global to patch.
+
+### The cold start, stated honestly
+
+The API runs on Render's free tier, which **spins the instance down after 15 minutes without
+traffic** and takes roughly a minute to bring it back. Nothing is broken when that happens — the
+first request after an idle spell simply waits for a container and a JVM.
+
+Three things in this app exist because of that, and are worth knowing about before you read them as
+over-engineering:
+
+- **Home, Log in and Sign up all fire one `GET /actuator/health` on mount**
+  ([`hooks/useBackendWakeUp.js`](src/hooks/useBackendWakeUp.js)). It carries no headers at all, which
+  keeps it a CORS-*simple* request — one round trip, no `OPTIONS` preflight. A visitor who lands on
+  Home and reads for twenty seconds before clicking **Sign up** finds the instance already awake.
+- **Both auth forms explain a slow submit instead of just spinning.** After 4.5 seconds
+  ([`components/ColdStartNotice.jsx`](src/components/ColdStartNotice.jsx)) an amber notice says the
+  server is waking up. A silent 60-second button is indistinguishable from a dead site.
+- **Every request has a ceiling.** `performRequest` aborts at 120 seconds and throws a
+  `client_timeout` that the notice layer recognises. 120 and not 30, because a real SDXL generation
+  legitimately takes 20–60 seconds; this limit exists to end a hang, not to police latency.
+
+None of that prevents the spin-down — only continuous traffic does. Pointing any uptime monitor at
+`/actuator/health` every 10–14 minutes keeps the instance up, and fits inside the free plan's 750
+instance-hours against the 744 hours in a long month. That is a dashboard setting, not code.
+
+## Screenshots
+
+Fifteen screens, captioned here by **what you are looking at and what happens if you touch it**. The
+same fifteen images are captioned from the API's side — the endpoint each one exercises, the query it
+issues — in [the backend README](../ghbliapi/README.md#screenshots). Read them together and the two
+halves of every screen line up.
+
+Two honest notes before the images. **S2, S4 and S5 predate the current header**: all three still
+show the old `G` circle avatar with a single dark **Create** button, rather than today's logo mark
+with **Log in** / **Sign up**. Their captions describe the panel content, which is current; the
+header chrome in them is one iteration behind. And **S3 shows a real signed-in account**, so the
+caption talks about the menu rather than transcribing what is in it.
+
+### S1 — Home, and the three promises
+
+The hero states the whole product in one line, and the three `.glass-panel` pills under it are the
+only feature list above the fold: *photo or text prompt*, *six film-inspired styles*, *results in
+seconds*. **Try Ghibli AI** is the `.btn-brand` primary; the header beside it is the signed-out
+state, which is the only view in this set that needs no token at all.
+
+![Home hero](src/assets/S1.png)
+
+### S2 — Features, three cards deep
+
+`FeaturesSection`, reached by `/features` — which is not a separate page but the same Home component
+scrolled to an anchor, which is why the address bar changes and nothing reloads. Three cards:
+accuracy, speed, studio quality. The `scroll-mt-24` on this heading is what stops the sticky header
+from sitting on top of it after the jump.
+
+![Features](src/assets/S2.png)
+
+### S3 — The account menu, and the footer under it
+
+Signed in, the header's Sign up pair is replaced by an avatar button that opens **History**,
+**Create** and **Log out**. This is the one dropdown in the app that deliberately does *not* use
+`.glass-panel`: a 65%-opaque menu over the busy CTA band behind it would be unreadable, so it is
+solid white. It closes on outside click, on `Escape`, and on route change.
+
+![Account menu and footer](src/assets/S3.png)
+
+### S4 — Photo to Art, mid-flow
+
+The left panel after a file is chosen: the filename echoed back as *Selected: …*, a **Browse another
+file** escape hatch, and an **Additional Details** box where the prompt above went — here, "convert
+the lion image into anime style image". The right panel is the finished PNG with **Download** and
+**Create Another**. Note there is no style picker on this tab: the backend fixes the preset for the
+photo flow, so offering a choice that is ignored would be a lie.
+
+![Photo to Art](src/assets/S4.png)
+
+### S5 — Text to Art, no upload at all
+
+The same two-panel layout on the other tab. **Ghibli Style** is a real select — *General Ghibli*
+here — and **Your Description** is the whole input. Switching tabs does not clear either side:
+[`generationDraftStore`](src/services/generationDraftStore.js) keeps a **separate slot per tab**
+(`photo` and `text`) plus the tab you were last in, so a mistaken click costs nothing.
+
+![Text to Art](src/assets/S5.png)
+
+### S6 — Recent creations, under the form
+
+`RecentGenerations` sits below the Create panels and shows the four newest rows with a **View all 7
+→** link, where the 7 is the real total rather than a count of what is on screen. Each card carries a
+type badge, a style-and-date line (`General Ghibli · 29 Aug 2026, 13:16`, `Anime · 28 Aug 2026,
+11:36`), the dimensions and file size (`1024×1024 · 2.0 MB`, `1344×768 · 2.1 MB`) and its own
+**Download** / **Delete** pair. The line above it is the point: *saved to your account, so they are
+still here after a tab switch or a page reload.*
+
+![Recent creations](src/assets/S6.png)
+
+### S7 — Whispers of the Wind
+
+`InspirationSection`. The large panel is the selected quote — "Trees and people used to be good
+friends." from *My Neighbor Totoro* — and the three tiles beside it (*Kiki's Delivery Service*,
+*Spirited Away*, *The Wind Rises*) swap into that slot when clicked. Static content from
+[`data/homeData.js`](src/data/homeData.js), no request involved; it is here because it is the visual
+vocabulary the six style presets are aiming at.
+
+![Whispers of the Wind](src/assets/S7.png)
+
+### S8 — Legal, part one
+
+One page serves `/legal`, `/terms` and `/privacy`. The hero — `GHIBLI AI · LEGAL`, *The short, honest
+version*, **Last updated 27 August 2026** — is followed by two buttons that scroll to the two halves
+rather than navigating anywhere, and then *Part one / Terms of Service* begins. Three URLs, one
+component, one document: nothing can drift out of step because there is only one copy of the text.
+
+![Legal hero and Terms](src/assets/S8.png)
+
+### S9 — Privacy, the two columns that matter
+
+*Part two*, and the only part of the legal page worth a screenshot on its own: **What is stored** —
+your name and email, a one-way BCrypt hash, the prompt and style, the generated PNG with its size and
+dimensions, the date and time — set beside **What is never stored**: the photo you uploaded, a
+readable password, payment details, any advertising or analytics or fingerprinting, and anything from
+other sites. Side by side, in a table, because a claim about what is *not* kept is only credible next
+to the list of what is.
+
+![Privacy — stored vs never stored](src/assets/S9.png)
+
+### S10 — Your creations, the history grid
+
+`/history`, protected. Seven items here; the grid steps 1 → 2 → 3 → 4 columns across `sm`, `lg` and
+`xl`, and the page size is 12 so the last row is full at every one of those breakpoints. Each card
+loads its own PNG through an authenticated request — not an `<img src>`, which would send no token —
+and revokes the blob URL when it unmounts.
+
+![History grid](src/assets/S10.png)
+
+### S11 — History, scrolled
+
+The same grid further down, and the reason it is a separate image: the header stays. `sticky top-0
+z-50` with `.glass-panel` behind it, so the cards you have scrolled past show faintly through the bar
+while **Create** and the account menu remain one click away. Deleting a card here removes it in place
+and refills the page from the server, so the grid never leaves a hole.
+
+![History, scrolled](src/assets/S11.png)
+
+### S12 — Sign up
+
+Name, email, password, and a **Create account** button that stays disabled until all three are
+filled. The 8–72 character rule the field states is not arbitrary: 72 is BCrypt's input limit, so a
+longer password would be silently truncated before hashing. The two failures are handled differently
+on purpose — a malformed email or a short password is a 400 with a per-field `errors` map, so the
+offending input turns red, while a taken address is a 409 and gets a **Sign in instead** link that
+carries your original destination with it.
+
+![Sign up](src/assets/S12.png)
+
+### S13 — Log in
+
+The same shape, one field shorter. Two things are deliberately *not* here: any hint about which of
+the email and the password was wrong (the API refuses to tell the UI, so account enumeration is not
+possible through it), and any "remember me" checkbox — the token lasts 24 hours and is kept in
+`localStorage` either way. If you arrived by being bounced off a protected page, an amber notice sits
+above the form and the router still remembers where you were headed.
+
+![Log in](src/assets/S13.png)
+
+### S14 — The gallery
+
+`GallerySection` — *Magical Transformations Gallery*. Eight curated tiles in three groups: a
+four-across top row, then the wider *Nature Ghibli Style* and *Studio Ghibli Scene* cards. Every
+caption here is built by the **same** `typeLabel` / `styleLabel` helpers a real history card uses, so
+the vocabulary in this static section cannot drift from the vocabulary in your own history.
+
+![Gallery](src/assets/S14.png)
+
+### S15 — The lightbox
+
+Click any tile and it opens full size with its own metadata line — *A pilot resting on a grounded
+starfighter in a wildflower meadow*, then `Text to Art · Princess Mononoke · 3840×2160` — and
+**Download** / **Close**. That resolution is not stored anywhere: it is read off the decoded image
+with `naturalWidth`/`naturalHeight` at the moment you click, since the tile itself is `object-cover`
+at a fixed height and its box says nothing about the file. `z-[60]`, so it covers the `z-50` header
+rather than sliding under it; `Escape` closes it, and so does a click on the backdrop — the panel
+stops that click from reaching it.
+
+![Gallery lightbox](src/assets/S15.png)
+
+## Project layout
+
+```
+ghbli-art-generator/
+├── index.html                 # Vite's entry point — root, not public/
+├── vite.config.mjs            # Dev server on port 3000, build to dist/
+├── vitest.config.mjs          # jsdom + setupTests.js
+├── tailwind.config.js         # The token set documented above
+├── vercel.json                # SPA rewrite + cache headers
+└── src/
+    ├── main.jsx               # createRoot
+    ├── App.jsx                # Thirteen routes, ProtectedRoute, scroll restoration
+    ├── index.css              # @layer base + .btn-brand / .glass-panel
+    ├── components/            # 22 files — pages and sections, no library
+    ├── context/               # AuthContext: the only context in the app
+    ├── data/                  # homeData.js, legalData.js — all static copy
+    ├── hooks/                 # useGenerationHistory, useBackendWakeUp
+    ├── services/              # apiClient, authStorage, generationDraftStore, generationEvents
+    ├── utils/                 # authRedirect, generationErrors, generationLabels
+    ├── assets/                # S1–S15 plus the gallery and inspiration images
+    ├── App.test.jsx           # Tests sit flat beside the code they cover
+    └── GenerationErrorNotice.test.jsx
+```
+
+Pages and sections share one `components/` folder rather than splitting into `pages/` and
+`components/`. The split would be arbitrary here: `HomePage` is a list of sections, and every one of
+those sections is also reachable as its own URL.
+
+## License
+
+This project is for educational and portfolio use.
