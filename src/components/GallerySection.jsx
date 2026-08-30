@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'; // State holds the clicked tile; effect binds Escape
+import useImageLoaded from '../hooks/useImageLoaded'; // So a heavy photograph dissolves in rather than popping
+import useRevealOnScroll, { REVEAL_DELAY } from '../hooks/useRevealOnScroll'; // Two groups here: the top row and the pair of cards
+import prefersReducedMotion from '../utils/motionPreference'; // The lightbox skips its exit when motion is unwanted
 import { styleLabel, typeLabel } from '../utils/generationLabels'; // Same wording as history cards
 import animeSceneOne from '../assets/A1.png';
 import animeSceneTwo from '../assets/A2.webp';
@@ -69,22 +72,44 @@ function galleryFilename({ title, src }) {
 }
 
 /**
+ * Shared by all eight tiles, so it is written once here instead of copied into four call sites.
+ * `overflow-hidden` is what the hover zoom crops against. The transition is now scoped to
+ * `box-shadow` alone — it used to be `transition-all` carrying both the reveal and the glow, which
+ * meant the ring and the background transitioned for no reason and the reveal's stagger delayed the
+ * glow. The reveal is an animation now, so this describes nothing but the hover: 200ms to bloom,
+ * 500ms to fade, because a light that leaves as fast as it arrives reads as a switch.
+ */
+const TILE_BASE_CLASS =
+  'overflow-hidden transition-shadow duration-500 ease-exit hover:shadow-glow hover:duration-200';
+
+/** How long the popup's exit takes. Must match `panel-out`'s duration in tailwind.config.js. */
+const LIGHTBOX_EXIT_MS = 200;
+
+/**
  * One clickable tile. The <img> lives inside a button rather than carrying its own onClick, so
  * the tile is reachable by keyboard and announced as a control — the same shape the history
  * card uses for its image (`cursor-zoom-in`, `title="View full size"`).
  */
 function GalleryTile({ item, onOpen, figureClassName, imageClassName }) {
+  // The fade goes on the button, not the <img>: the image already owns `transition-transform` for
+  // its zoom, and a second `transition-*` on the same element would silently replace it.
+  const [imageRef, imageLoaded] = useImageLoaded();
+
   return (
-    <figure className={figureClassName}>
+    <figure className={`${TILE_BASE_CLASS} ${figureClassName}`}>
       <button
         type="button"
         // The <img> node is handed up rather than looked up by src: a selector built from a
         // hashed URL is fragile, and this is the exact element that was clicked.
         onClick={(event) => onOpen(item, event.currentTarget.querySelector('img'))}
-        className="group block h-full w-full cursor-zoom-in"
+        className={`group block h-full w-full cursor-zoom-in transition-opacity duration-700 ease-entrance motion-reduce:transition-none ${
+          imageLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
         title="View full size"
       >
-        <img src={item.src} alt={item.title} className={imageClassName} />
+        {/* `decoding="async"` is the cheapest real win on this page: these files are megabytes, and a
+            synchronous decode blocks the main thread — including whichever reveal is mid-flight. */}
+        <img ref={imageRef} src={item.src} alt={item.title} loading="lazy" decoding="async" className={imageClassName} />
       </button>
     </figure>
   );
@@ -93,6 +118,37 @@ function GalleryTile({ item, onOpen, figureClassName, imageClassName }) {
 function GallerySection() {
   // The clicked tile plus the pixel size measured from it; null means the popup is closed.
   const [activeItem, setActiveItem] = useState(null);
+  // The popup used to vanish the instant it was dismissed, having faded in — an asymmetry that reads
+  // as a bug. It now animates out, and this flag is what keeps the node mounted while it does.
+  const [isClosing, setIsClosing] = useState(false);
+  // Two reveal groups, because the two halves of this section are far enough apart vertically that
+  // one observer would fire the lower half while it is still off screen.
+  const [topRowRef, topShown] = useRevealOnScroll();
+  const [cardsRef, cardsShown] = useRevealOnScroll();
+
+  /** Every dismissal path goes through here, so the exit cannot be skipped by one of them. */
+  const requestClose = () => {
+    if (prefersReducedMotion()) {
+      setActiveItem(null); // No animation to wait for
+      return;
+    }
+
+    setIsClosing(true);
+  };
+
+  /** Unmounts the popup once its exit animation has played. */
+  useEffect(() => {
+    if (!isClosing) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setActiveItem(null);
+      setIsClosing(false);
+    }, LIGHTBOX_EXIT_MS);
+
+    return () => clearTimeout(timer);
+  }, [isClosing]);
 
   /** Escape closes the popup. Bound only while it is open, as in `GenerationCard`. */
   useEffect(() => {
@@ -102,7 +158,7 @@ function GallerySection() {
 
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
-        setActiveItem(null);
+        requestClose();
       }
     };
 
@@ -143,22 +199,34 @@ function GallerySection() {
       <h2 className="text-center font-heading text-3xl font-bold text-slate-900 sm:text-4xl lg:text-5xl">
         Magical Transformations Gallery
       </h2>
-      <div className="mt-10 grid gap-6 sm:mt-12 sm:grid-cols-2 lg:grid-cols-4">
-        {magicalGalleryItems.map((item) => (
+      <div ref={topRowRef} className="mt-10 grid gap-6 sm:mt-12 sm:grid-cols-2 lg:grid-cols-4">
+        {magicalGalleryItems.map((item, index) => (
           <GalleryTile
             key={item.src}
             item={item}
             onOpen={handleOpen}
-            figureClassName="overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-stone-200"
+            /* Four tiles dealt left to right, 80ms apart. An `animation-delay` now, so — unlike the
+               `delay-*` class it replaces — it cannot reach the hover glow declared above. */
+            figureClassName={`rounded-2xl bg-white shadow-card ring-1 ring-stone-200 ${
+              topShown ? `animate-rise-in ${REVEAL_DELAY[index]} motion-reduce:animate-none` : 'opacity-0'
+            }`}
             /* h-44 on a phone: at h-56 a single-column stack of four tiles was ~900px of
                scrolling before the next section. */
-            imageClassName="h-44 w-full object-cover transition-transform duration-500 group-hover:scale-110 sm:h-52 lg:h-56"
+            /* Fast in, slow out: the zoom answers a pointer in 300ms and unwinds over 700ms. One
+               symmetric 700ms in both directions is what made this feel like syrup. */
+            imageClassName="h-44 w-full object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance sm:h-52 lg:h-56"
           />
         ))}
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-2">
-        <article className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-stone-200 sm:p-6 lg:p-8">
+      <div ref={cardsRef} className="mt-10 grid gap-6 lg:grid-cols-2">
+        <article
+          /* `transition-all duration-700` is gone: nothing on this panel hovers, so the reveal
+             animation is now its only motion — a transition here described nothing. */
+          className={`rounded-2xl bg-white p-5 shadow-card ring-1 ring-stone-200 sm:p-6 lg:p-8 ${
+            cardsShown ? 'animate-rise-in motion-reduce:animate-none' : 'opacity-0'
+          }`}
+        >
           {/* `whitespace-nowrap` is removed rather than gated at a breakpoint: this string is
               ~380px wide at text-2xl but the card has only 279px inside it on a 375px phone, so
               it pushed the document wider than the viewport and the whole page scrolled
@@ -175,14 +243,21 @@ function GallerySection() {
                 key={item.src}
                 item={item}
                 onOpen={handleOpen}
-                figureClassName="overflow-hidden rounded-xl"
-                imageClassName="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-110 sm:h-44 lg:h-52"
+                /* No reveal classes on the inner tiles: they are already inside a block that
+                   reveals, and animating them again would fade a fade. */
+                figureClassName="rounded-xl"
+                imageClassName="h-40 w-full object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance sm:h-44 lg:h-52"
               />
             ))}
           </div>
         </article>
-        <article className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-stone-200 sm:p-6 lg:p-8">
-          {/* Same nowrap overflow as the card above, same fix. */}
+        <article
+          /* Same nowrap overflow as the card above, same fix — and the same reveal, one beat behind
+             on an `animation-delay` rather than the `delay-100` class. */
+          className={`rounded-2xl bg-white p-5 shadow-card ring-1 ring-stone-200 sm:p-6 lg:p-8 ${
+            cardsShown ? 'animate-rise-in [animation-delay:120ms] motion-reduce:animate-none' : 'opacity-0'
+          }`}
+        >
           <h3 className="text-xl font-semibold tracking-tight sm:text-2xl lg:text-3xl">
             Studio Ghibli Scene
           </h3>
@@ -192,8 +267,8 @@ function GallerySection() {
                 key={item.src}
                 item={item}
                 onOpen={handleOpen}
-                figureClassName="overflow-hidden rounded-xl"
-                imageClassName="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-110 sm:h-44 lg:h-52"
+                figureClassName="rounded-xl"
+                imageClassName="h-40 w-full object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance sm:h-44 lg:h-52"
               />
             ))}
           </div>
@@ -207,11 +282,20 @@ function GallerySection() {
           role="dialog"
           aria-modal="true"
           aria-label="Gallery sample"
-          onClick={() => setActiveItem(null)}
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-sm"
+          onClick={requestClose}
+          /* The backdrop dissolves in over 180ms and the panel scales up from 0.97 — and now leaves
+             the same way. It used to fade in and then vanish on one frame, an asymmetry that reads
+             as a bug rather than a dismissal. */
+          className={`fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-sm motion-reduce:animate-none ${
+            isClosing ? 'animate-fade-out' : 'animate-fade-in'
+          }`}
         >
           <div
-            className="max-h-full w-full max-w-3xl overflow-auto rounded-3xl bg-white p-4 shadow-card sm:p-5"
+            /* `panel-out` is `forwards`: the panel must hold its final, faded frame for the rest of
+               the 200ms rather than snapping back to full opacity before it unmounts. */
+            className={`max-h-full w-full max-w-3xl overflow-auto rounded-3xl bg-white p-4 shadow-card motion-reduce:animate-none sm:p-5 ${
+              isClosing ? 'animate-panel-out' : 'animate-panel-in'
+            }`}
             onClick={(event) => event.stopPropagation()}
           >
             {/* object-contain, unlike the cropped tile: the popup shows the whole picture. */}
@@ -234,13 +318,15 @@ function GallerySection() {
               <button
                 type="button"
                 onClick={handleDownload}
-                className="flex-1 rounded-xl bg-gradient-to-r from-amber-800 to-brand-700 px-6 py-3 text-base font-semibold text-white shadow-glow transition-transform hover:-translate-y-0.5"
+                /* Same fast-in/slow-out pair as every other lift on the page, so the popup's primary
+                   action behaves like the CTAs rather than snapping at Tailwind's default 150ms. */
+                className="flex-1 rounded-xl bg-gradient-to-r from-amber-800 to-brand-700 px-6 py-3 text-base font-semibold text-white shadow-glow transition-transform duration-300 ease-exit hover:-translate-y-0.5 hover:duration-200 hover:ease-settle"
               >
                 Download
               </button>
               <button
                 type="button"
-                onClick={() => setActiveItem(null)}
+                onClick={requestClose} // Third dismissal path, same exit as Escape and the backdrop
                 className="flex-1 rounded-xl border border-stone-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 transition-colors hover:border-brand-500 hover:text-brand-600"
               >
                 Close

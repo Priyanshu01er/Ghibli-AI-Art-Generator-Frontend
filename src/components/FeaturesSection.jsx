@@ -1,4 +1,5 @@
 import { featureCards } from '../data/homeData';
+import useRevealOnScroll, { REVEAL_DELAY } from '../hooks/useRevealOnScroll'; // One observer for the whole three-card row, one shared stagger
 
 const featureIcons = [
   (
@@ -54,17 +55,32 @@ const featureIcons = [
   ),
 ];
 
+/**
+ * The stagger and the observer now come from the same module, and the stagger is an `animation-delay`
+ * rather than a `delay-*` class. That matters here: a `delay-*` class delays the element's
+ * *transitions* as well, so the hover lift used to need a `hover:delay-0` counter-class to start on
+ * time — and still crawled back late, because un-hovering restored the base delay. An animation delay
+ * cannot reach a transition at all, so the hover below needs no defending.
+ */
 function FeaturesSection() {
+  const [gridRef, shown] = useRevealOnScroll(); // The grid is the group; the cards inherit its moment
+
   return (
     <section id="features" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
       <h2 className="text-center font-heading text-3xl font-bold text-slate-900 sm:text-4xl lg:text-5xl">Ghibli AI Features</h2>
-      <div className="mt-10 grid gap-5 sm:mt-12 sm:gap-6 md:grid-cols-3">
+      <div ref={gridRef} className="mt-10 grid gap-5 sm:mt-12 sm:gap-6 md:grid-cols-3">
         {featureCards.map((card, index) => (
           <article
             key={card.title}
-            className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-stone-200 transition-transform duration-300 hover:-translate-y-1 sm:p-8"
+            // Back to `transition-transform` from the `transition-all` the old transition-based
+            // reveal forced: opacity is the animation's business now, and this element's only
+            // transition is the lift. Fast in, slow out — a real object answers a pointer at once
+            // and takes its time settling back.
+            className={`group rounded-2xl bg-white p-6 shadow-card ring-1 ring-stone-200 transition-transform duration-500 ease-exit hover:-translate-y-1 hover:duration-200 hover:ease-settle sm:p-8 ${
+              shown ? `animate-rise-in ${REVEAL_DELAY[index]} motion-reduce:animate-none` : 'opacity-0'
+            }`}
           >
-            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 sm:mb-5">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 transition-transform duration-500 ease-exit group-hover:scale-110 group-hover:duration-200 group-hover:ease-settle sm:mb-5">
               {featureIcons[index]}
             </div>
             {/* text-3xl was the worst offender on a phone: 30px card titles in a stack read as

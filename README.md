@@ -83,7 +83,25 @@ Eight sections in [`HomePage.jsx`](src/components/HomePage.jsx), in this order:
 pills under it that say what the product actually is, in the order a visitor cares about:
 "Photo or text prompt", "Six film-inspired styles", "Results in seconds". The CTA is an in-page
 anchor to `#create`, which is the `CtaSection` band at the bottom; the button that leaves the page
-is in the header.
+is in the header. The headline types itself in on every load
+([`HeroHeadline.jsx`](src/components/HeroHeadline.jsx) + [`useTypewriter.js`](src/hooks/useTypewriter.js)):
+every character sits in its final position from the first frame and only flips from `invisible` to
+visible, so the gradient on line 2 paints each letter the same colour it ends up with and nothing
+below the headline moves. `prefers-reduced-motion: reduce` gets the finished headline immediately.
+
+Two things make that read as a person rather than a teleprinter, and neither is the jitter you would
+reach for first. The schedule is drawn **once per mount** and then sampled by a single
+`requestAnimationFrame` loop, so every character lands on a frame boundary instead of wherever a
+`setTimeout` happened to fire — that phase noise against the refresh rate is what the old chained
+timeout actually sounded like, and a 26ms floor above one 60Hz frame makes two characters in one
+frame impossible. The interval itself is right-skewed, `TYPE_MIN_MS + random()² × TYPE_SPAN_MS`, plus
+a reach for shift on each capital, a pause on each space, a slower first four keys and a 7% chance of
+an 80–160ms hesitation — a symmetric `±` window is the one distribution a real typist never produces.
+Roughly 3.5s to the last character and 4.8s to the caret leaving; the twelve constants at the top of
+the hook are the whole tuning surface. The caret does not flick on and off either: it fades through a
+`--caret-alpha` custom property written imperatively from that same loop, so 60 frames a second cost
+no re-render, and what moves is the caret's **colour alpha** rather than its `opacity` — an `opacity`
+below 1 on a child of a `background-clip: text` element drops the glyph out of the gradient entirely.
 
 **Features.** Three cards from `data/homeData.js`, each with an inline SVG at `strokeWidth="1.8"`
 — accuracy, speed, resolution.
@@ -442,13 +460,18 @@ is no dark mode.
 | `shadow-glow` | `0 18px 40px rgba(15,118,110,0.25)` | Primary buttons and the featured image — brand-tinted, so it reads as light rather than shadow |
 | `font-heading` | Sora | Headings only; body copy is Manrope |
 
-Two component classes in [`src/index.css`](src/index.css) carry the shapes that repeat:
+Two component classes in [`src/index.css`](src/index.css) carry the shapes that repeat, and they are
+now the only two: the `.reveal` / `.reveal-in` pair that used to sit beside them is gone, replaced by
+the `rise-in` animation described under [Motion](#motion):
 
 - **`.btn-brand`** — every primary call to action. Mobile-first on purpose: it used to be a flat
   `px-8 py-4 text-xl`, which put a 20px label in a 64px-tall button inside a 343px phone column. It
   now steps up at `sm`, so one edit covers the hero and the closing CTA together. The header's
   **Sign up** overrides the padding and size explicitly, because a page-sized CTA in a 72px-tall
-  header is a different job.
+  header is a different job. Its hover is the fast-in/slow-out pair described under Motion —
+  `transition-[transform,box-shadow] duration-300 ease-exit` on the base, `duration-200 ease-settle`
+  on `:hover` — and it names those two properties rather than using `transition-all`, because they are
+  the only two the hover changes.
 - **`.glass-panel`** — `border-white/70 bg-white/65 backdrop-blur-md`. Used by the sticky header and
   by the three hero pills, so page content stays faintly visible through them. Deliberately *not*
   used by the account dropdown: a 65%-opaque menu over a busy page is unreadable, so that one is
@@ -465,6 +488,101 @@ gradient wash that every page floats on, and the type split — Sora on `h1`–`
 at `letter-spacing: -0.02em`, Manrope on everything else.
 
 Nothing is themed at runtime, and there is no dark mode. The table above is the whole palette.
+
+### Motion
+
+Motion is opt-out everywhere, through one helper:
+[`utils/motionPreference.js`](src/utils/motionPreference.js) reads `prefers-reduced-motion: reduce`
+behind a `matchMedia` guard (jsdom has none), and every hook that animates consults it. Under that
+setting the headline is finished on the first frame with no frame ever requested,
+`useRevealOnScroll` starts already revealed, the gallery lightbox skips its exit and unmounts at
+once, and every CSS animation below is paired with `motion-reduce:animate-none`.
+
+One rule shapes all of it: **things arrive slowly and answer instantly.** An entrance takes 700ms; a
+hover answers in 200ms and relaxes back over 500–700ms. Symmetric timing is what reads as syrup, and
+this asymmetry is the difference between a page that is animated and one that feels responsive.
+
+Three easing tokens carry that, so "the arrival curve" is one decision rather than nine `ease-out`s:
+
+| Token | Curve | Used for |
+| --- | --- | --- |
+| `ease-entrance` | `cubic-bezier(0.16, 1, 0.3, 1)` | anything arriving — a long tail, so it settles instead of stopping |
+| `ease-settle` | `cubic-bezier(0.34, 1.2, 0.64, 1)` | hover *in*: a touch of overshoot past 1, which is what a real object does |
+| `ease-exit` | `cubic-bezier(0.4, 0, 0.6, 1)` | hover *out*, and the return of anything |
+
+Four kinds of motion:
+
+- **Arrival — an animation, not a transition.** [`useRevealOnScroll.js`](src/hooks/useRevealOnScroll.js)
+  returns `[ref, shown]`, and the caller flips its children between `opacity-0` and `animate-rise-in`
+  plus one of the four `REVEAL_DELAY` classes the same module exports — `[animation-delay:0ms]` to
+  `240ms`, 80ms apart, because four tiles finishing 240ms apart is a beat and 300ms apart is a queue.
+  One `IntersectionObserver` per **group** (a grid, a panel), not per tile, at `threshold: 0.15` and
+  `rootMargin: '0px 0px -8% 0px'`, disconnected the moment it fires: a reveal that can play backwards
+  on the way up the page reads as a glitch rather than an entrance. Eight groups — the feature cards,
+  the gallery's top row, its two cards, the detail row, the inspiration grid, its caption row, the FAQ
+  cards and the closing CTA panel. A missing `IntersectionObserver` reveals immediately, which is what
+  keeps the suites green under jsdom and guarantees a crawler sees every section. The hero observes
+  nothing at all — it is the first screen, so its paragraph, CTA and three pills carry fixed delays
+  (120 / 240 / 360 / 440 / 520ms) and compose themselves while the headline is still typing.
+- **Ambient, always on.** The five blurred blobs drift on **three** incommensurate periods — 19s, 23s
+  and 29s — through three waypoints with a 1 → 1.08 scale breath, each with its own negative
+  `[animation-delay:-Ns]`. One period phase-shifted five ways is still one period: the whole page
+  repeats on it, and a blob sliding down a straight line and back reads as the page wobbling.
+  Rotation is deliberately absent — these are radially symmetric circles, so it would render nothing.
+  The P1 artwork in `DetailSection` pans on a 32s Ken Burns inside a second `overflow-hidden` clip, so
+  the 1.06 scale cannot spill over the amber frame the section is built on.
+- **On interaction.** The eight gallery tiles and the four inspiration pictures zoom under a
+  `shadow-glow` bloom, with the asymmetry above on every one: `duration-700 ease-exit` going back,
+  `group-hover:duration-300 group-hover:ease-entrance` coming in. Each element transitions only the
+  property its hover actually changes — `transition-shadow` on a card (Tailwind's `ring-*` is a
+  box-shadow, so that covers a `hover:ring-brand-100` too), `transition-transform` on the image inside
+  it — and nothing on the page transitions `all` any more. The gallery lightbox arrives on
+  `animate-fade-in` + `animate-panel-in` and now leaves on `animate-fade-out` + `animate-panel-out`:
+  one `requestClose()` shared by Escape, the backdrop and the Close button raises a `closing` flag and
+  unmounts 200ms later, so it fades out instead of vanishing mid-frame. An inspiration swap dissolves
+  through `animate-swap-fade` on exactly the two pictures that moved — the untouched tiles keep their
+  DOM nodes and sit still, and the reveal cannot replay on a swap because each `<figure>` is keyed by
+  its **slot** while the `<img>` inside it is keyed by identity.
+- **On load.** [`useImageLoaded.js`](src/hooks/useImageLoaded.js) returns `[ref, isLoaded]`, and the
+  fade goes on the element **wrapping** the `<img>` — the gallery tile's `<button>`, the detail
+  artwork's clip `<div>` — never on the image itself, which already owns `transition-transform` for
+  its zoom. Every picture on the homepage carries `decoding="async"`, so a multi-megabyte PNG cannot
+  decode synchronously on the main thread and stall whichever reveal is running as it lands, and the
+  thirteen below the fold carry `loading="lazy"` (the two 32px logo marks in the chrome need neither).
+  The four inspiration pictures take the hint but not the fade: `swap-fade` is already their entrance.
+
+Shared chrome moves on the same rules. The header's dropdown is **always mounted** and toggled through
+`transition-menu duration-200` (`opacity, transform, visibility`) rather than
+`{isMenuOpen ? … : null}`: `visibility` is animatable and, per spec, holds `visible` for the whole
+transition when it is the *start* value, so the panel fades out and only then leaves the tab order and
+the accessibility tree. No timers, no `inert`, nothing duplicated for a screen reader. The sticky bar
+takes a `transition-shadow duration-300` elevation shadow past 8px of scroll, from one boolean on a
+`{ passive: true }` listener — a bar that overlaps the page should look like it is above it. And the
+footer's six links finally have `transition-colors duration-200`; their colour used to snap in a single
+frame while the header's nav eased.
+
+Eleven animation tokens and one property list carry all of that, in
+[`tailwind.config.js`](tailwind.config.js) beside `shadow-glow`: `rise-in`, `soft-in`, `ken-burns`,
+`drift-slow`, `drift-alt`, `drift-wide`, `swap-fade`, `fade-in`, `fade-out`, `panel-in`, `panel-out`,
+and `transition-menu`.
+
+Three cascade rules are load-bearing, and each one is easy to undo by accident:
+
+- **`rise-in` fills `backwards` — never `forwards` or `both`.** `backwards` holds the 0% frame through
+  the `animation-delay`, which is what keeps a staggered card invisible until its turn, and then
+  releases the element completely once the animation ends. A `forwards`/`both` transform animation
+  would permanently outrank the `hover:-translate-y-1` on the same card. `swap-fade` gets away with
+  `both` only because it animates opacity and blur and never touches `transform`.
+- **The stagger is an `animation-delay`, never a `delay-*` class.** `delay-*` is `transition-delay`,
+  and it applies to *every* transitioned property — which is why the fourth card in a grid used to hold
+  its hover glow still for 300ms before it began to fade, with `hover:delay-0` patching only the way
+  in. An `animation-delay` cannot reach a transition at all, and no element on the page carries a
+  non-zero `transition-delay` any more.
+- **One `transition-*` utility per element, and Tailwind's own output order decides ties.** Two of them
+  on one element both set `transition-property`, so the later-emitted one wins outright no matter which
+  is written last in the class string — the reason the image fade lives on a wrapper, and the reason
+  the header menu uses a single duration and easing in both directions rather than a `duration-150` in
+  the closed branch that would silently lose.
 
 ## Tech stack
 
@@ -556,12 +674,51 @@ The runner is configured in [`vitest.config.mjs`](vitest.config.mjs) rather than
 `setupFiles: './src/setupTests.js'`, which is the single line that pulls in
 `@testing-library/jest-dom` and gives every file `toBeInTheDocument`.
 
-Two suites, both sitting flat at `src/*.test.jsx`:
+Seven suites, all sitting flat at `src/*.test.jsx`:
 
 - **[`App.test.jsx`](src/App.test.jsx)** renders the whole `<App />` — router, `AuthProvider` and
-  all — and asserts the hero heading is on screen. It is short, and it is the most useful test in
+  all — and asserts the hero heading is on screen, through `getByRole('heading', { name })` because
+  the headline is now one span per character. It is short, and it is the most useful test in
   the repo: it fails the moment a provider is nested wrongly, a route throws on mount, or a hook
   breaks the initial render of the default route.
+- **[`HeroHeadline.test.jsx`](src/HeroHeadline.test.jsx)** — nine tests over the typing animation, on
+  a hand-rolled frame clock rather than `vi.useFakeTimers`: the hook reads the timestamp its own
+  `requestAnimationFrame` callback is handed, so a stub that owns both the frame queue and the clock
+  is the whole surface and needs no assumptions about a fake-timer library's rAF semantics. Three
+  assert what a screenshot cannot show — all 51 characters are in the DOM reserving their final boxes
+  before any of them is visible, the heading exposes the whole sentence as its accessible name from
+  the first render, and reduced motion produces the finished headline with no frame ever requested.
+  The rest pin the *feel* down so it cannot quietly regress: advancing one frame at a time, the
+  visible count never rises by more than 1; the last character lands inside a human 2.5–5s window;
+  and the caret is solid while keys are landing but writes a value strictly between 0 and 1 while it
+  is idle, which is the fade rather than a flick.
+- **[`useRevealOnScroll.test.jsx`](src/useRevealOnScroll.test.jsx)** — three tests over the scroll
+  reveal, and all three are about failing *open*. With no `IntersectionObserver` at all — jsdom, and
+  every crawler — the content is simply there rather than permanently invisible; with one stubbed, the
+  block starts hidden, ignores a non-intersecting entry, reveals on the first intersecting one and
+  disconnects immediately, and the observer is asserted to have been built with the exact
+  `REVEAL_THRESHOLD` / `REVEAL_ROOT_MARGIN` the module exports, so retuning them is a deliberate act;
+  under reduced motion it is revealed on the first render and no observer is constructed at all.
+- **[`useImageLoaded.test.jsx`](src/useImageLoaded.test.jsx)** — four tests over the load fade, and
+  three of them are the cases that would leave a hole in the page. An image that has not arrived
+  reports `false`; a `load` event flips it to `true`; an **`error`** flips it to `true` as well,
+  because a broken file must reveal its alt text rather than sit at zero opacity forever; and an
+  already-cached image — `complete` with a `naturalWidth`, which is what a browser hands you on a
+  second visit — resolves inside the first effect with no event fired at all. That last one cannot be
+  written as "no listener was added": React 19 binds its own `load`/`error` pair to every `<img>` it
+  renders, so counting listeners proves nothing.
+- **[`Header.test.jsx`](src/Header.test.jsx)** — four tests over the one piece of chrome with a real
+  regression risk. The dropdown is always in the DOM now and toggled through `visibility`, so the
+  tests pin the class contract in both directions (`invisible pointer-events-none opacity-0` ↔
+  `visible opacity-100`, with `aria-expanded` following), assert the panel is still *present* after
+  closing — that is what leaves the 200ms fade somewhere to happen — and assert deliberately that its
+  links are rendered on every route. `classList.contains`, never a substring match: `'invisible'`
+  contains `'visible'`. The fourth drives the sticky bar's elevation shadow, which needs
+  `Object.defineProperty` because jsdom's `scrollY` is a getter.
+- **[`ColdStartNotice.test.jsx`](src/ColdStartNotice.test.jsx)** — seven tests over
+  [`useBackendWakeUp`](src/hooks/useBackendWakeUp.js): the notice only appears once a submit has
+  been running longer than the delay, it is cleared when the submit ends, and the wake ping fires
+  once per mount and never re-renders its caller.
 - **[`GenerationErrorNotice.test.jsx`](src/GenerationErrorNotice.test.jsx)** — six tests over the
   seven-way failure notice, and they assert the two *decisions* it makes rather than its pixels:
   which cause it names, and whether it offers a retry. An exhausted balance is named and offers **no
@@ -803,15 +960,20 @@ ghbli-art-generator/
     ├── main.jsx               # createRoot
     ├── App.jsx                # Thirteen routes, ProtectedRoute, scroll restoration
     ├── index.css              # @layer base + .btn-brand / .glass-panel
-    ├── components/            # 22 files — pages and sections, no library
+    ├── components/            # 24 files — pages and sections, no library
     ├── context/               # AuthContext: the only context in the app
     ├── data/                  # homeData.js, legalData.js — all static copy
-    ├── hooks/                 # useGenerationHistory, useBackendWakeUp
+    ├── hooks/                 # useGenerationHistory, useBackendWakeUp, useTypewriter, useRevealOnScroll, useImageLoaded
     ├── services/              # apiClient, authStorage, generationDraftStore, generationEvents
-    ├── utils/                 # authRedirect, generationErrors, generationLabels
+    ├── utils/                 # authRedirect, generationErrors, generationLabels, motionPreference
     ├── assets/                # S1–S15 plus the gallery and inspiration images
     ├── App.test.jsx           # Tests sit flat beside the code they cover
-    └── GenerationErrorNotice.test.jsx
+    ├── ColdStartNotice.test.jsx
+    ├── GenerationErrorNotice.test.jsx
+    ├── Header.test.jsx
+    ├── HeroHeadline.test.jsx
+    ├── useImageLoaded.test.jsx
+    └── useRevealOnScroll.test.jsx
 ```
 
 Pages and sections share one `components/` folder rather than splitting into `pages/` and

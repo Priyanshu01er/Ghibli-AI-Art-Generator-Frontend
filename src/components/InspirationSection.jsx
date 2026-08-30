@@ -1,4 +1,5 @@
 import { useState } from 'react'; // Holds which of the four quotes currently owns the large panel
+import useRevealOnScroll, { REVEAL_DELAY } from '../hooks/useRevealOnScroll'; // Panels first, then the caption row
 import { ghibliQuotes } from '../data/homeData'; // Copy lives with every other home section's data
 // H1–H4 are the four landscape assets added for this section. Imported here, not in homeData,
 // so the URLs stay build-time constants and the data module has no bundler side effects.
@@ -35,6 +36,9 @@ function InspirationSection() {
   // Only the arrangement is state; `ghibliQuotes` itself is never mutated, so the caption row
   // and the panels always read the same four entries.
   const [order, setOrder] = useState(INITIAL_ORDER);
+  // Two groups: the picture grid, and the caption row underneath it.
+  const [gridRef, gridShown] = useRevealOnScroll();
+  const [captionsRef, captionsShown] = useRevealOnScroll();
 
   /**
    * Clicking a small tile swaps it with the large panel — a true swap, not "move to front": the
@@ -64,10 +68,12 @@ function InspirationSection() {
     // same class of bug as the `whitespace-nowrap` overflow fixed in GallerySection.
     <section id="inspiration" className="relative overflow-hidden mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
       {/* One blurred blob, in the CtaSection idiom. pointer-events-none so it cannot eat a click,
-          and -z-10 so it sits behind the cards rather than washing them out. */}
+          and -z-10 so it sits behind the cards rather than washing them out. `drift-wide` rather
+          than the `drift-slow` every blob used to share: five circles on one 18s loop gave the
+          whole page a heartbeat, and three incommensurate periods (19s/23s/29s) never re-sync. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -right-16 top-8 -z-10 h-64 w-64 rounded-full bg-accent-300/40 blur-3xl"
+        className="pointer-events-none absolute -right-16 top-8 -z-10 h-64 w-64 animate-drift-wide rounded-full bg-accent-300/40 blur-3xl [animation-delay:-12s] motion-reduce:animate-none"
       />
 
       <h2 className="text-center font-heading text-3xl font-bold text-slate-900 sm:text-4xl lg:text-5xl">
@@ -78,15 +84,29 @@ function InspirationSection() {
         your own.
       </p>
 
-      <div className="mt-10 grid gap-6 sm:mt-12 lg:grid-cols-3">
+      <div ref={gridRef} className="mt-10 grid gap-6 sm:mt-12 lg:grid-cols-3">
         {/* The featured panel spans two of three columns on lg and is taller, so the row below
             reads as supporting material rather than as four equal tiles. */}
-        <figure className="group relative overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-stone-200 lg:col-span-2">
+        <figure
+          /* `transition-shadow`, not `transition-all`: the glow is the only thing this panel
+             animates on hover, and the reveal is no longer a transition at all — so the
+             `hover:delay-0` that used to fight the stagger is gone with it. */
+          className={`group relative overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-stone-200 transition-shadow duration-500 ease-exit hover:shadow-glow hover:duration-200 lg:col-span-2 ${
+            gridShown ? 'animate-rise-in motion-reduce:animate-none' : 'opacity-0'
+          }`}
+        >
           <img
+            // Keyed by the entry, so a swap remounts this <img> and `animate-swap-fade` replays:
+            // the new picture develops out of a blur instead of cutting in. Opacity and blur only —
+            // a transform here would be pinned by the animation's `both` fill and permanently
+            // outrank the hover zoom below.
+            key={featured.id}
             src={IMAGE_SOURCES[featured.asset]}
             alt={featured.alt}
             loading="lazy"
-            className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-110 sm:h-80 lg:h-full lg:min-h-[420px]"
+            decoding="async" // These four are 2–6MB each; a sync decode would stall the reveal
+            /* Fast in, slow out, same as the gallery: 300ms to zoom, 700ms to unwind. */
+            className="h-64 w-full animate-swap-fade object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance motion-reduce:animate-none sm:h-80 lg:h-full lg:min-h-[420px]"
           />
           {/* A scrim, not a solid bar: the quote needs contrast at the bottom while the top of
               the picture stays untouched. */}
@@ -101,16 +121,25 @@ function InspirationSection() {
         {/* Stacked beside the panel on lg, a plain stack below it on smaller screens — three
             landscape crops side by side on a phone would each be ~100px wide. */}
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
-          {tiles.map((item) => (
+          {tiles.map((item, index) => (
             <figure
-              key={item.id}
-              className="group relative overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-stone-200"
+              // Keyed by *slot*, not by entry, and that is a change the reveal forced: the reveal is
+              // a CSS animation now, and a remount would replay it — so a swapped tile would blank
+              // out and slide up again. Identity lives on the <img> below instead, exactly as the
+              // featured panel already does it, which is what still makes the swap dissolve.
+              key={`tile-${index}`}
+              /* Same narrowing as the panel above: shadow only, fast in, slow out. */
+              className={`group relative overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-stone-200 transition-shadow duration-500 ease-exit hover:shadow-glow hover:duration-200 ${
+                gridShown ? `animate-rise-in ${REVEAL_DELAY[index + 1]} motion-reduce:animate-none` : 'opacity-0'
+              }`}
             >
               <img
+                key={item.id} // Remounts on a swap, so `swap-fade` replays on this tile alone
                 src={IMAGE_SOURCES[item.asset]}
                 alt={item.alt}
                 loading="lazy"
-                className="h-44 w-full object-cover transition-transform duration-500 group-hover:scale-110 sm:h-40 lg:h-[128px]"
+                decoding="async"
+                className="h-44 w-full animate-swap-fade object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance motion-reduce:animate-none sm:h-40 lg:h-[128px]"
               />
               <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/80 to-transparent px-4 py-3">
                 <p className="text-sm font-semibold leading-snug text-white">&ldquo;{item.quote}&rdquo;</p>
@@ -136,9 +165,18 @@ function InspirationSection() {
       {/* The captions, kept out of the images: overlaying two lines of text on a 128px-tall crop
           leaves nothing of the picture, so the mood line for each tile lives underneath.
           Ordered by `arranged`, not `ghibliQuotes`, so a swap moves a caption with its image. */}
-      <ul className="mt-8 grid gap-3 text-center text-sm text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
-        {arranged.map((item) => (
-          <li key={item.id} className="rounded-xl bg-white/70 px-3 py-2 ring-1 ring-stone-200">
+      <ul ref={captionsRef} className="mt-8 grid gap-3 text-center text-sm text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
+        {arranged.map((item, index) => (
+          <li
+            // Also keyed by slot: a caption whose id moved would otherwise remount and re-run the
+            // reveal animation on every swap. The text simply updates in place, as it did before.
+            key={`caption-${index}`}
+            /* Read left to right, like the line of text it is. No transition left here — the
+               `transition-all` only ever existed to carry the old reveal. */
+            className={`rounded-xl bg-white/70 px-3 py-2 ring-1 ring-stone-200 ${
+              captionsShown ? `animate-rise-in ${REVEAL_DELAY[index]} motion-reduce:animate-none` : 'opacity-0'
+            }`}
+          >
             {item.caption}
           </li>
         ))}

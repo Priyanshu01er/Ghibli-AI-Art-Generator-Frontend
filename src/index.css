@@ -45,12 +45,17 @@
   /* Was `px-8 py-4 text-xl` flat, so every CTA on the site rendered at desktop size on a phone —
      a 20px label in a 64px-tall button inside a 343px column. Mobile-first now, stepping up at
      sm; one edit covers HeroSection and CtaSection both. */
+  /* `ease-exit` + a shorter, springier hover: the button answers a pointer in 200ms and relaxes back
+     over 300ms. Symmetric timing is the thing that reads as syrup. */
+  /* `transition-[transform,box-shadow]`, not `transition-all`: the hover below changes exactly those
+     two (the gradient swap rides on custom properties, which are not animatable anyway), and this was
+     the last element on the page still transitioning *every* property. */
   .btn-brand {
-    @apply inline-flex rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3.5 text-lg font-semibold text-white shadow-[0_12px_28px_rgba(15,118,110,0.32)] transition-all duration-300 sm:px-8 sm:py-4 sm:text-xl;
+    @apply inline-flex rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3.5 text-lg font-semibold text-white shadow-[0_12px_28px_rgba(15,118,110,0.32)] transition-[transform,box-shadow] duration-300 ease-exit sm:px-8 sm:py-4 sm:text-xl;
   }
 
   .btn-brand:hover {
-    @apply -translate-y-0.5 from-brand-600 to-brand-700 shadow-[0_16px_34px_rgba(8,77,73,0.35)];
+    @apply -translate-y-0.5 from-brand-600 to-brand-700 shadow-[0_16px_34px_rgba(8,77,73,0.35)] duration-200 ease-settle;
   }
 
   .glass-panel {

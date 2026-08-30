@@ -69,11 +69,14 @@ function Footer() {
             {/* Were plain <li> text. The two generator links carry no onClick on purpose:
                 handleFooterNavClick compares `pathname !== href` — which is always true for a
                 `?tab=` link — and CreatePage reads the param itself, so the query must survive. */}
-            <li><Link to="/create?tab=photo" className="hover:text-brand-600">Photo to Ghibli Art</Link></li>
-            <li><Link to="/create?tab=text" className="hover:text-brand-600">Text to Ghibli Art</Link></li>
+            {/* `transition-colors duration-200` on all six links below: the colour used to snap in a
+                single frame here while the header's nav eased, which is the sort of inconsistency
+                that reads as unfinished rather than as speed. */}
+            <li><Link to="/create?tab=photo" className="transition-colors duration-200 hover:text-brand-600">Photo to Ghibli Art</Link></li>
+            <li><Link to="/create?tab=text" className="transition-colors duration-200 hover:text-brand-600">Text to Ghibli Art</Link></li>
             {/* Moved here from the deleted "Links" column: an overview link alongside the two
                 specific generators it describes. */}
-            <li><Link to="/features" onClick={(event) => handleFooterNavClick(event, '/features')} className="hover:text-brand-600">Features</Link></li>
+            <li><Link to="/features" onClick={(event) => handleFooterNavClick(event, '/features')} className="transition-colors duration-200 hover:text-brand-600">Features</Link></li>
           </ul>
         </div>
 
@@ -81,11 +84,11 @@ function Footer() {
           <h3 className="text-xl font-semibold">Legal</h3>
           <ul className="mt-2 space-y-1.5 text-base text-slate-600">
             {/* The two legal links pointed at /home before — there was no legal page at all. */}
-            <li><Link to="/terms" onClick={(event) => handleFooterNavClick(event, '/terms')} className="hover:text-brand-600">Terms of Service</Link></li>
-            <li><Link to="/privacy" onClick={(event) => handleFooterNavClick(event, '/privacy')} className="hover:text-brand-600">Privacy Policy</Link></li>
+            <li><Link to="/terms" onClick={(event) => handleFooterNavClick(event, '/terms')} className="transition-colors duration-200 hover:text-brand-600">Terms of Service</Link></li>
+            <li><Link to="/privacy" onClick={(event) => handleFooterNavClick(event, '/privacy')} className="transition-colors duration-200 hover:text-brand-600">Privacy Policy</Link></li>
             {/* Moved here from the deleted "Links" column: FAQs are mostly policy answers, so
                 they read naturally next to Terms and Privacy. */}
-            <li><Link to="/faq" onClick={(event) => handleFooterNavClick(event, '/faq')} className="hover:text-brand-600">FAQ</Link></li>
+            <li><Link to="/faq" onClick={(event) => handleFooterNavClick(event, '/faq')} className="transition-colors duration-200 hover:text-brand-600">FAQ</Link></li>
           </ul>
         </div>
       </div>

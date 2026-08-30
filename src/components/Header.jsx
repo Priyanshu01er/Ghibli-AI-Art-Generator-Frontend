@@ -37,7 +37,21 @@ function Header() {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false); // The one menu that replaced the auth cluster
+  const [isScrolled, setIsScrolled] = useState(false); // Drives the bar's elevation shadow, below
   const menuRef = useRef(null); // Wraps button + panel, so an outside click can be told apart
+
+  /**
+   * A sticky bar that has started to overlap the page should look like it is above it. One boolean
+   * past 8px is the whole feature — `{ passive: true }` so the listener can never delay a scroll,
+   * and React bails out of the re-render whenever the value has not actually changed.
+   */
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 8);
+
+    onScroll(); // A reload halfway down the page must not start flat and then pop
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const routeMap = {
     '/home': { sectionId: 'home', offset: 96 },
@@ -133,7 +147,13 @@ function Header() {
   };
 
   return (
-    <header className="glass-panel sticky top-0 z-50 border-b border-brand-100/80">
+    <header
+      /* The shadow is the only thing that moves here: 300ms is slow enough that scrolling a few
+         pixels does not flash it, fast enough that it feels attached to the gesture. */
+      className={`glass-panel sticky top-0 z-50 border-b border-brand-100/80 transition-shadow duration-300 ${
+        isScrolled ? 'shadow-card' : 'shadow-none'
+      }`}
+    >
       {/* h-16 on a phone: 80px of a 667px-tall screen is a lot of chrome, and the bar now holds
           only two things there. gap-3 keeps the wordmark off the menu button at 360px. */}
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-20 sm:px-6 lg:px-8">
@@ -203,86 +223,96 @@ function Header() {
               <MenuIcon />
             </button>
 
-            {isMenuOpen ? (
-              <div
-                id="header-menu"
-                // Solid white, deliberately not the header's own `.glass-panel`: a 65%-opaque
-                // dropdown sitting over the gallery images below is unreadable.
-                className="absolute right-0 top-full z-50 mt-2 w-60 rounded-2xl bg-white p-2 shadow-card ring-1 ring-stone-200 sm:w-64"
-              >
-                {isAuthenticated ? (
-                  // The name that used to sit loose in the bar, now with the email that was
-                  // previously only a `title` attribute. Both truncate — a long address should
-                  // widen nothing.
-                  <div className="border-b border-stone-200 px-3 pb-3 pt-1">
-                    <p className="truncate text-base font-semibold text-slate-900">{user?.name}</p>
-                    <p className="truncate text-sm text-slate-500">{user?.email}</p>
-                  </div>
-                ) : null}
+            {/* Rendered always, opened with a transition instead of a mount. `visibility` is
+                animatable and, per spec, stays `visible` for the whole transition when it is the
+                *start* value — so the panel fades out and only then becomes hidden, which is also
+                what takes its links out of the tab order and the accessibility tree while closed.
+                No timers, no `inert`, nothing duplicated for a screen reader. */}
+            <div
+              id="header-menu"
+              // Solid white, deliberately not the header's own `.glass-panel`: a 65%-opaque
+              // dropdown sitting over the gallery images below is unreadable.
+              /* One duration and one easing for both directions on purpose: a `duration-150` in the
+                 closed branch would not win by being written later — Tailwind resolves competing
+                 utilities by its own output order, not by the order in the class string. */
+              className={`absolute right-0 top-full z-50 mt-2 w-60 rounded-2xl bg-white p-2 shadow-card ring-1 ring-stone-200 transition-menu duration-200 ease-exit sm:w-64 ${
+                isMenuOpen
+                  ? 'visible translate-y-0 opacity-100'
+                  : 'pointer-events-none invisible -translate-y-1 opacity-0'
+              }`}
+            >
+              {isAuthenticated ? (
+                // The name that used to sit loose in the bar, now with the email that was
+                // previously only a `title` attribute. Both truncate — a long address should
+                // widen nothing.
+                <div className="border-b border-stone-200 px-3 pb-3 pt-1">
+                  <p className="truncate text-base font-semibold text-slate-900">{user?.name}</p>
+                  <p className="truncate text-sm text-slate-500">{user?.email}</p>
+                </div>
+              ) : null}
 
-                {/* lg:hidden — from lg up these are already the visible row in the bar above.
-                    For a signed-in user `/create` is dropped here because the account group below
-                    always carries a `Create` row, and listing it twice in one 240px panel reads
-                    as a bug; an anonymous visitor has no account group, so it stays. */}
-                <nav className="lg:hidden">
-                  {navItems
-                    .filter((item) => !isAuthenticated || item.href !== '/create')
-                    .map((item) => (
-                      <Link
-                        key={item.label}
-                        to={item.href}
-                        onClick={(event) => handleMenuNavClick(event, item.href)}
-                        className={MENU_ROW_DEFAULT}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                </nav>
-
-                {/* Divider above the account group, hidden at exactly the width where the group
-                    below it has moved into the bar and there is nothing left to divide. */}
-                <div
-                  className={`mx-3 my-1 border-t border-stone-200 ${isAuthenticated ? 'lg:hidden' : 'sm:hidden'}`}
-                />
-
-                {isAuthenticated ? (
-                  <>
-                    {/* Explicit close on these two: navigating changes `pathname` and the effect
-                        handles it, but clicking `History` while already on /history does not. */}
-                    <Link to="/history" onClick={() => setIsMenuOpen(false)} className={MENU_ROW_DEFAULT}>
-                      History
-                    </Link>
+              {/* lg:hidden — from lg up these are already the visible row in the bar above.
+                  For a signed-in user `/create` is dropped here because the account group below
+                  always carries a `Create` row, and listing it twice in one 240px panel reads
+                  as a bug; an anonymous visitor has no account group, so it stays. */}
+              <nav className="lg:hidden">
+                {navItems
+                  .filter((item) => !isAuthenticated || item.href !== '/create')
+                  .map((item) => (
                     <Link
-                      to="/create"
-                      onClick={(event) => handleMenuNavClick(event, '/create')}
+                      key={item.label}
+                      to={item.href}
+                      onClick={(event) => handleMenuNavClick(event, item.href)}
                       className={MENU_ROW_DEFAULT}
                     >
-                      Create
+                      {item.label}
                     </Link>
-                    <div className="mx-3 my-1 border-t border-stone-200" />
-                    {/* Red tint marks it as the one destructive row, so it is not mistaken for
-                        another navigation item. */}
-                    <button type="button" onClick={handleLogout} className={MENU_ROW_DANGER}>
-                      Log out
-                    </button>
-                  </>
-                ) : (
-                  // sm:hidden: from sm up these two are already buttons in the bar.
-                  <div className="sm:hidden">
-                    <Link to="/login" onClick={() => setIsMenuOpen(false)} className={MENU_ROW_DEFAULT}>
-                      Log in
-                    </Link>
-                    <Link
-                      to="/signup"
-                      onClick={() => setIsMenuOpen(false)}
-                      className={`${MENU_ROW} text-brand-600 hover:bg-brand-50`}
-                    >
-                      Sign up
-                    </Link>
-                  </div>
-                )}
-              </div>
-            ) : null}
+                  ))}
+              </nav>
+
+              {/* Divider above the account group, hidden at exactly the width where the group
+                  below it has moved into the bar and there is nothing left to divide. */}
+              <div
+                className={`mx-3 my-1 border-t border-stone-200 ${isAuthenticated ? 'lg:hidden' : 'sm:hidden'}`}
+              />
+
+              {isAuthenticated ? (
+                <>
+                  {/* Explicit close on these two: navigating changes `pathname` and the effect
+                      handles it, but clicking `History` while already on /history does not. */}
+                  <Link to="/history" onClick={() => setIsMenuOpen(false)} className={MENU_ROW_DEFAULT}>
+                    History
+                  </Link>
+                  <Link
+                    to="/create"
+                    onClick={(event) => handleMenuNavClick(event, '/create')}
+                    className={MENU_ROW_DEFAULT}
+                  >
+                    Create
+                  </Link>
+                  <div className="mx-3 my-1 border-t border-stone-200" />
+                  {/* Red tint marks it as the one destructive row, so it is not mistaken for
+                      another navigation item. */}
+                  <button type="button" onClick={handleLogout} className={MENU_ROW_DANGER}>
+                    Log out
+                  </button>
+                </>
+              ) : (
+                // sm:hidden: from sm up these two are already buttons in the bar.
+                <div className="sm:hidden">
+                  <Link to="/login" onClick={() => setIsMenuOpen(false)} className={MENU_ROW_DEFAULT}>
+                    Log in
+                  </Link>
+                  <Link
+                    to="/signup"
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`${MENU_ROW} text-brand-600 hover:bg-brand-50`}
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
