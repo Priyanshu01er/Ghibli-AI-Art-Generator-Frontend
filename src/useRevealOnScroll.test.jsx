@@ -1,6 +1,12 @@
-import { act, render } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
-import useRevealOnScroll, { REVEAL_ROOT_MARGIN, REVEAL_THRESHOLD } from './hooks/useRevealOnScroll';
+import useRevealOnScroll, {
+  REVEAL_DELAY,
+  REVEAL_ROOT_MARGIN,
+  REVEAL_THRESHOLD,
+  revealDelay,
+} from './hooks/useRevealOnScroll';
 
 /**
  * The hook has one job and two escape hatches, and it is the escape hatches that need protecting:
@@ -13,6 +19,24 @@ import useRevealOnScroll, { REVEAL_ROOT_MARGIN, REVEAL_THRESHOLD } from './hooks
 function Probe() {
   const [ref, isRevealed] = useRevealOnScroll();
   return <div ref={ref} data-testid="block" data-revealed={String(isRevealed)} />;
+}
+
+/**
+ * The same probe, except the observed block does not exist on the first render — the shape the history
+ * page's empty state has, since it is only rendered once its fetch has come back empty.
+ */
+function LateProbe() {
+  const [ref, isRevealed] = useRevealOnScroll();
+  const [mounted, setMounted] = useState(false);
+
+  return (
+    <>
+      <button type="button" onClick={() => setMounted(true)}>
+        mount
+      </button>
+      {mounted ? <div ref={ref} data-testid="block" data-revealed={String(isRevealed)} /> : null}
+    </>
+  );
 }
 
 const isRevealed = (container) => container.querySelector('[data-testid="block"]').dataset.revealed;
@@ -67,6 +91,39 @@ test('it hides the block, reveals it on first intersection, then stops watching'
   expect(disconnect).toHaveBeenCalled();
 });
 
+test('a block that only mounts later is still observed, and still revealed', () => {
+  // The bug this pins is silent and permanent: with a `useRef`, the effect ran once with `current`
+  // still null, nothing re-ran it, and the block stayed at `opacity-0` for good in every browser that
+  // *has* an observer. The history page's empty state is exactly this shape — it does not exist until
+  // its fetch comes back empty — so a brand new account saw a page with nothing on it.
+  let notify;
+  const observe = vi.fn();
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback) {
+        notify = callback;
+      }
+
+      observe = observe;
+
+      disconnect() {}
+    },
+  );
+
+  const { container } = render(<LateProbe />);
+
+  expect(observe).not.toHaveBeenCalled(); // Nothing to watch yet, and no observer wasted on it
+
+  act(() => screen.getByRole('button', { name: 'mount' }).click());
+
+  expect(observe).toHaveBeenCalledTimes(1); // The node arriving is what starts the watch
+  expect(isRevealed(container)).toBe('false');
+
+  act(() => notify([{ isIntersecting: true }]));
+  expect(isRevealed(container)).toBe('true');
+});
+
 test('prefers-reduced-motion reveals immediately and never constructs an observer', () => {
   const construct = vi.fn();
   vi.stubGlobal(
@@ -92,4 +149,17 @@ test('prefers-reduced-motion reveals immediately and never constructs an observe
 
   expect(isRevealed(container)).toBe('true');
   expect(construct).not.toHaveBeenCalled();
+});
+
+test('revealDelay clamps past the end of the ladder instead of returning undefined', () => {
+  // The bug this exists to prevent is silent: `REVEAL_DELAY[6]` is `undefined`, which lands in a
+  // template-literal class list as the string "undefined" — no delay, no error, no stagger. The
+  // legal page's storage columns list five points and its hero stacks five items, so the ladder is
+  // read right up to its last rung and a sixteen-clause page would have hit this first.
+  expect(revealDelay(0)).toBe(REVEAL_DELAY[0]);
+  expect(revealDelay(REVEAL_DELAY.length - 1)).toBe('[animation-delay:400ms]');
+  // Past the end: the last rung, not `undefined`. Deliberately clamped rather than extended —
+  // beyond ~400ms a stagger reads as a queue, so the tail of a long list arrives together.
+  expect(revealDelay(REVEAL_DELAY.length)).toBe('[animation-delay:400ms]');
+  expect(revealDelay(99)).toBe('[animation-delay:400ms]');
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'; // State holds the clicked tile; effect binds Escape
 import useImageLoaded from '../hooks/useImageLoaded'; // So a heavy photograph dissolves in rather than popping
+import useImageQueue from '../hooks/useImageQueue'; // ...and so the eight of them arrive in reading order
 import useRevealOnScroll, { REVEAL_DELAY } from '../hooks/useRevealOnScroll'; // Two groups here: the top row and the pair of cards
 import prefersReducedMotion from '../utils/motionPreference'; // The lightbox skips its exit when motion is unwanted
 import { styleLabel, typeLabel } from '../utils/generationLabels'; // Same wording as history cards
@@ -60,6 +61,14 @@ const animeSceneItems = [
 ];
 
 /**
+ * The four lower tiles as one queue rather than two: slots 0–1 are the Nature card and 2–3 the Scene
+ * card, so the cascade reads left to right across the pair. Two independent queues would have raced,
+ * and A1.png (6.3MB) against A2.webp (66KB) is exactly the mismatch that made this section assemble
+ * itself 4, 1, 2, 3.
+ */
+const lowerCardItems = [...mountainLakeItems, ...animeSceneItems];
+
+/**
  * `import` gives a hashed URL like `/static/media/O1.7f3c…9b.jpg`, which would be a terrible
  * saved filename, so the download name is built from the title and only the real extension is
  * carried over from the URL. Mirrors `downloadFilename` in `utils/generationLabels`, which
@@ -89,11 +98,24 @@ const LIGHTBOX_EXIT_MS = 200;
  * One clickable tile. The <img> lives inside a button rather than carrying its own onClick, so
  * the tile is reachable by keyboard and announced as a control — the same shape the history
  * card uses for its image (`cursor-zoom-in`, `title="View full size"`).
+ *
+ * `queue` + `queueIndex` are what put the eight of them in order: the tile asks whether it may
+ * request its file yet, and whether it may be seen yet, and reports back when its bytes land.
  */
-function GalleryTile({ item, onOpen, figureClassName, imageClassName }) {
+function GalleryTile({ item, onOpen, figureClassName, imageClassName, queue, queueIndex }) {
   // The fade goes on the button, not the <img>: the image already owns `transition-transform` for
   // its zoom, and a second `transition-*` on the same element would silently replace it.
   const [imageRef, imageLoaded] = useImageLoaded();
+  const { canLoad, isVisible, reportSettled } = queue;
+
+  // Tells the queue this slot is done so it can release the head and admit the next request. `error`
+  // counts as loaded inside `useImageLoaded`, so a broken file advances the queue instead of wedging
+  // it; `reportSettled` is idempotent, so re-running this effect costs nothing.
+  useEffect(() => {
+    if (imageLoaded) {
+      reportSettled(queueIndex);
+    }
+  }, [imageLoaded, queueIndex, reportSettled]);
 
   return (
     <figure className={`${TILE_BASE_CLASS} ${figureClassName}`}>
@@ -102,14 +124,25 @@ function GalleryTile({ item, onOpen, figureClassName, imageClassName }) {
         // The <img> node is handed up rather than looked up by src: a selector built from a
         // hashed URL is fragile, and this is the exact element that was clicked.
         onClick={(event) => onOpen(item, event.currentTarget.querySelector('img'))}
-        className={`group block h-full w-full cursor-zoom-in transition-opacity duration-700 ease-entrance motion-reduce:transition-none ${
-          imageLoaded ? 'opacity-100' : 'opacity-0'
+        /* An animation now rather than a `transition-opacity`: the picture develops out of a soft
+           blur, and — unlike a transition — it cannot be delayed by anything the reveal does. */
+        className={`group block h-full w-full cursor-zoom-in motion-reduce:animate-none ${
+          isVisible(queueIndex) && imageLoaded ? 'animate-develop-in' : 'opacity-0'
         }`}
         title="View full size"
       >
         {/* `decoding="async"` is the cheapest real win on this page: these files are megabytes, and a
             synchronous decode blocks the main thread — including whichever reveal is mid-flight. */}
-        <img ref={imageRef} src={item.src} alt={item.title} loading="lazy" decoding="async" className={imageClassName} />
+        {/* No `src` until the queue says so, which is the whole fix: the browser would otherwise ask
+            for all four at once and they would land smallest-file-first. */}
+        <img
+          ref={imageRef}
+          src={canLoad(queueIndex) ? item.src : undefined}
+          alt={item.title}
+          loading="lazy"
+          decoding="async"
+          className={imageClassName}
+        />
       </button>
     </figure>
   );
@@ -125,6 +158,10 @@ function GallerySection() {
   // one observer would fire the lower half while it is still off screen.
   const [topRowRef, topShown] = useRevealOnScroll();
   const [cardsRef, cardsShown] = useRevealOnScroll();
+  // One queue per group, started by that group's reveal: nothing is even requested before the row is
+  // on its way into view, and then the four pictures land in reading order rather than in file order.
+  const topRowQueue = useImageQueue(magicalGalleryItems.length, topShown);
+  const cardsQueue = useImageQueue(lowerCardItems.length, cardsShown);
 
   /** Every dismissal path goes through here, so the exit cannot be skipped by one of them. */
   const requestClose = () => {
@@ -205,6 +242,8 @@ function GallerySection() {
             key={item.src}
             item={item}
             onOpen={handleOpen}
+            queue={topRowQueue}
+            queueIndex={index} // Left to right, which is also the order they will now appear in
             /* Four tiles dealt left to right, 80ms apart. An `animation-delay` now, so — unlike the
                `delay-*` class it replaces — it cannot reach the hover glow declared above. */
             figureClassName={`rounded-2xl bg-white shadow-card ring-1 ring-stone-200 ${
@@ -238,11 +277,13 @@ function GallerySection() {
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             {/* These four were plain <img> tags; they go through the same tile so all eight
                 pictures in this section open the popup, not just the top row. */}
-            {mountainLakeItems.map((item) => (
+            {mountainLakeItems.map((item, index) => (
               <GalleryTile
                 key={item.src}
                 item={item}
                 onOpen={handleOpen}
+                queue={cardsQueue}
+                queueIndex={index} // Slots 0–1 of the shared lower queue
                 /* No reveal classes on the inner tiles: they are already inside a block that
                    reveals, and animating them again would fade a fade. */
                 figureClassName="rounded-xl"
@@ -262,11 +303,13 @@ function GallerySection() {
             Studio Ghibli Scene
           </h3>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            {animeSceneItems.map((item) => (
+            {animeSceneItems.map((item, index) => (
               <GalleryTile
                 key={item.src}
                 item={item}
                 onOpen={handleOpen}
+                queue={cardsQueue}
+                queueIndex={mountainLakeItems.length + index} // Slots 2–3, so this card follows the one beside it
                 figureClassName="rounded-xl"
                 imageClassName="h-40 w-full object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance sm:h-44 lg:h-52"
               />
@@ -327,7 +370,9 @@ function GallerySection() {
               <button
                 type="button"
                 onClick={requestClose} // Third dismissal path, same exit as Escape and the backdrop
-                className="flex-1 rounded-xl border border-stone-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 transition-colors hover:border-brand-500 hover:text-brand-600"
+                /* `duration-200`: bare `transition-colors` runs at Tailwind's default 150ms `ease`,
+                   which is a different tempo from every other control on this page. */
+                className="flex-1 rounded-xl border border-stone-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 transition-colors duration-200 hover:border-brand-500 hover:text-brand-600"
               >
                 Close
               </button>

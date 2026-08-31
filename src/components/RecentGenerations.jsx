@@ -1,10 +1,13 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import useGenerationHistory from '../hooks/useGenerationHistory';
-import GenerationCard from './GenerationCard';
+import GenerationGrid from './GenerationGrid'; // Was a private copy of the history page's grid
+import GenerationSkeleton from './GenerationSkeleton';
 
 /** One row at every breakpoint the grid below uses. */
 const RECENT_SIZE = 4;
+
+/** Four across on large screens, so this strip is one row rather than the history page's three. */
+const RECENT_GRID = 'grid gap-5 sm:grid-cols-2 lg:grid-cols-4';
 
 /**
  * The newest few generations, shown under the create form.
@@ -24,6 +27,10 @@ const RECENT_SIZE = 4;
  * Failure here is deliberately quiet: one line of text, not the panel `HistoryPage` shows.
  * The job of this page is generating art, and a history fetch that failed must not look like
  * the generator is broken.
+ *
+ * The grid itself is `GenerationGrid`, shared with `HistoryPage`. Because that component carries the
+ * reveal observer, this strip — which sits below the fold — now also defers all four of its
+ * authenticated image fetches until you actually scroll down to it.
  */
 function RecentGenerations() {
   const {
@@ -37,15 +44,6 @@ function RecentGenerations() {
     remove,
   } = useGenerationHistory({ size: RECENT_SIZE });
 
-  const [expandedId, setExpandedId] = useState(null);
-
-  const handleDelete = async (id) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-    }
-    await remove(id);
-  };
-
   // Nothing to say before the first generation — the form above already is the call to
   // action, and an empty panel here would just push it up the page.
   if (isEmpty && !error) {
@@ -57,15 +55,26 @@ function RecentGenerations() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
           Recent creations
-          {isRefreshing ? <span className="ml-2 text-sm font-medium text-slate-400">Updating…</span> : null}
+          {/* Same as the history page's "Refreshing…": a word about work in progress should move. */}
+          {isRefreshing ? (
+            <span className="ml-2 animate-pulse text-sm font-medium text-slate-400 motion-reduce:animate-none">
+              Updating…
+            </span>
+          ) : null}
         </h2>
 
         {totalElements > RECENT_SIZE ? (
-          <Link to="/history" className="text-base font-semibold text-brand-700 hover:text-brand-600">
+          <Link
+            to="/history"
+            className="text-base font-semibold text-brand-700 transition-colors duration-200 hover:text-brand-600"
+          >
             View all {totalElements} →
           </Link>
         ) : (
-          <Link to="/history" className="text-base font-semibold text-brand-700 hover:text-brand-600">
+          <Link
+            to="/history"
+            className="text-base font-semibold text-brand-700 transition-colors duration-200 hover:text-brand-600"
+          >
             View history →
           </Link>
         )}
@@ -76,7 +85,7 @@ function RecentGenerations() {
       </p>
 
       {error ? (
-        <p className="mt-4 text-sm font-medium text-red-600">
+        <p className="mt-4 animate-soft-in text-sm font-medium text-red-600 motion-reduce:animate-none">
           Your recent creations could not be loaded, but generating still works.{' '}
           <Link to="/history" className="font-semibold underline">
             Open history
@@ -85,33 +94,18 @@ function RecentGenerations() {
       ) : null}
 
       {isLoading && !error ? (
-        <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: RECENT_SIZE }, (_, index) => (
-            <div key={index} className="overflow-hidden rounded-3xl bg-white shadow-card ring-1 ring-stone-200">
-              <div className="aspect-square animate-pulse bg-stone-200/70" />
-              <div className="p-4 sm:p-5">
-                <div className="h-4 w-3/4 animate-pulse rounded bg-stone-200/80" />
-                <div className="mt-3 h-3 w-1/2 animate-pulse rounded bg-stone-200/60" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <GenerationSkeleton count={RECENT_SIZE} className={`mt-4 ${RECENT_GRID}`} />
       ) : null}
 
       {generations.length > 0 ? (
-        <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {generations.map((generation) => (
-            <GenerationCard
-              key={generation.id}
-              generation={generation}
-              isExpanded={expandedId === generation.id}
-              onExpand={setExpandedId}
-              onCollapse={() => setExpandedId(null)}
-              onDelete={handleDelete}
-              isDeleting={deletingId === generation.id}
-            />
-          ))}
-        </div>
+        /* No `key` here, unlike the history page's `key={page}`: this strip has no pagination, and a
+           new generation prepending a row must not restart the queue for the three below it. */
+        <GenerationGrid
+          className={`mt-4 ${RECENT_GRID}`}
+          generations={generations}
+          onDelete={remove}
+          deletingId={deletingId}
+        />
       ) : null}
     </section>
   );

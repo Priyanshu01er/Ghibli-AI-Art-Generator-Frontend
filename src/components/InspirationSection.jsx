@@ -1,4 +1,6 @@
-import { useState } from 'react'; // Holds which of the four quotes currently owns the large panel
+import { useEffect, useState } from 'react'; // State holds which quote owns the large panel; the effect reports to the queue
+import useImageLoaded from '../hooks/useImageLoaded'; // These four had no load fade at all until now
+import useImageQueue from '../hooks/useImageQueue'; // ...and no order either: 2.4/0.6/2.1/1.4MB appeared 2, 4, 3, 1
 import useRevealOnScroll, { REVEAL_DELAY } from '../hooks/useRevealOnScroll'; // Panels first, then the caption row
 import { ghibliQuotes } from '../data/homeData'; // Copy lives with every other home section's data
 // H1–H4 are the four landscape assets added for this section. Imported here, not in homeData,
@@ -22,6 +24,49 @@ const QUOTES_BY_ID = new Map(ghibliQuotes.map((item) => [item.id, item]));
 const INITIAL_ORDER = ghibliQuotes.map((item) => item.id);
 
 /**
+ * Id → queue slot, pinned to the *entry* rather than to the panel it currently sits in. They are the
+ * same thing on the first render, which is what makes the cascade read panel-then-tiles; pinning it
+ * to the entry is what stops a swap made mid-load from pulling the `src` back out of a picture that
+ * had already been given one.
+ */
+const QUEUE_SLOT = new Map(INITIAL_ORDER.map((id, index) => [id, index]));
+
+/**
+ * One picture, with the queue's two questions answered on it: may it request its file yet, and may it
+ * be seen yet. A component rather than inline JSX because it owns hooks and there are two call sites
+ * (the panel and the tiles) — and because `useImageLoaded` cannot live inside a `.map()` body.
+ *
+ * The animation goes on the <img> itself here, unlike the gallery: the featured picture sizes itself
+ * with `lg:h-full` against its <figure>, and a wrapper in between would collapse that. Safe because
+ * `develop-in` animates opacity and blur while the hover zoom is a `transition-transform` — an
+ * animation and a transition only collide when they touch the same property.
+ */
+function InspirationPicture({ item, queue, className }) {
+  const [imageRef, imageLoaded] = useImageLoaded();
+  const { canLoad, isVisible, reportSettled } = queue;
+  const slot = QUEUE_SLOT.get(item.id);
+
+  // Releases the head of the queue and admits the next request. Idempotent, so the churn of this
+  // component's props costs nothing.
+  useEffect(() => {
+    if (imageLoaded) {
+      reportSettled(slot);
+    }
+  }, [imageLoaded, slot, reportSettled]);
+
+  return (
+    <img
+      ref={imageRef}
+      src={canLoad(slot) ? IMAGE_SOURCES[item.asset] : undefined} // Withheld until this slot's turn
+      alt={item.alt}
+      loading="lazy"
+      decoding="async" // These four are 0.6–2.4MB each; a sync decode would stall the reveal
+      className={`${className} ${isVisible(slot) && imageLoaded ? 'animate-develop-in' : 'opacity-0'}`}
+    />
+  );
+}
+
+/**
  * "Whispers of the Wind" — the quiet beat between the product story and the FAQ.
  *
  * Deliberately not a second gallery: `GallerySection` owns the click-to-enlarge interaction and
@@ -39,6 +84,8 @@ function InspirationSection() {
   // Two groups: the picture grid, and the caption row underneath it.
   const [gridRef, gridShown] = useRevealOnScroll();
   const [captionsRef, captionsShown] = useRevealOnScroll();
+  // One queue for the four pictures, started by the grid's reveal.
+  const pictureQueue = useImageQueue(INITIAL_ORDER.length, gridShown);
 
   /**
    * Clicking a small tile swaps it with the large panel — a true swap, not "move to front": the
@@ -95,18 +142,16 @@ function InspirationSection() {
             gridShown ? 'animate-rise-in motion-reduce:animate-none' : 'opacity-0'
           }`}
         >
-          <img
-            // Keyed by the entry, so a swap remounts this <img> and `animate-swap-fade` replays:
-            // the new picture develops out of a blur instead of cutting in. Opacity and blur only —
-            // a transform here would be pinned by the animation's `both` fill and permanently
-            // outrank the hover zoom below.
+          <InspirationPicture
+            // Keyed by the entry, so a swap remounts this picture and `develop-in` replays: the new
+            // one develops out of a blur instead of cutting in. The remount is also why the load
+            // check in `useImageLoaded` is a layout effect — a cached file has to resolve before the
+            // next paint, or the swap flashes.
             key={featured.id}
-            src={IMAGE_SOURCES[featured.asset]}
-            alt={featured.alt}
-            loading="lazy"
-            decoding="async" // These four are 2–6MB each; a sync decode would stall the reveal
+            item={featured}
+            queue={pictureQueue}
             /* Fast in, slow out, same as the gallery: 300ms to zoom, 700ms to unwind. */
-            className="h-64 w-full animate-swap-fade object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance motion-reduce:animate-none sm:h-80 lg:h-full lg:min-h-[420px]"
+            className="h-64 w-full object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance motion-reduce:animate-none sm:h-80 lg:h-full lg:min-h-[420px]"
           />
           {/* A scrim, not a solid bar: the quote needs contrast at the bottom while the top of
               the picture stays untouched. */}
@@ -133,13 +178,11 @@ function InspirationSection() {
                 gridShown ? `animate-rise-in ${REVEAL_DELAY[index + 1]} motion-reduce:animate-none` : 'opacity-0'
               }`}
             >
-              <img
-                key={item.id} // Remounts on a swap, so `swap-fade` replays on this tile alone
-                src={IMAGE_SOURCES[item.asset]}
-                alt={item.alt}
-                loading="lazy"
-                decoding="async"
-                className="h-44 w-full animate-swap-fade object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance motion-reduce:animate-none sm:h-40 lg:h-[128px]"
+              <InspirationPicture
+                key={item.id} // Remounts on a swap, so `develop-in` replays on this tile alone
+                item={item}
+                queue={pictureQueue}
+                className="h-44 w-full object-cover transition-transform duration-700 ease-exit group-hover:scale-110 group-hover:duration-300 group-hover:ease-entrance motion-reduce:animate-none sm:h-40 lg:h-[128px]"
               />
               <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/80 to-transparent px-4 py-3">
                 <p className="text-sm font-semibold leading-snug text-white">&ldquo;{item.quote}&rdquo;</p>

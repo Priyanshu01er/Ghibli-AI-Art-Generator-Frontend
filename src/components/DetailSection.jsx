@@ -62,12 +62,12 @@ function DetailSection() {
       >
         {/* A second clip inside the amber frame, purely for the pan below: the 1.06 scale would
             otherwise spill over the p-3 padding and swallow the border this section is built on. */}
-        {/* It doubles as the load fade's target — the <img> itself cannot carry it, because a
-            `transition-opacity` there would replace nothing useful today but collides the moment
-            this picture is given a hover. The wrapper is the safe place for it. */}
+        {/* It doubles as the load fade's target — the <img> itself cannot carry it, because it already
+            owns `animate-ken-burns`, and one element gets one `animation`. So the develop happens on
+            the wrapper and the pan on the picture inside it, and neither touches the other. */}
         <div
-          className={`h-full overflow-hidden rounded-2xl transition-opacity duration-700 ease-entrance motion-reduce:transition-none ${
-            artworkLoaded ? 'opacity-100' : 'opacity-0'
+          className={`h-full overflow-hidden rounded-2xl motion-reduce:animate-none ${
+            artworkLoaded ? 'animate-develop-in' : 'opacity-0'
           }`}
         >
           {/* lg:h-full stretches the artwork through the now taller wrapper; object-cover crops

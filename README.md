@@ -510,12 +510,17 @@ Three easing tokens carry that, so "the arrival curve" is one decision rather th
 | `ease-settle` | `cubic-bezier(0.34, 1.2, 0.64, 1)` | hover *in*: a touch of overshoot past 1, which is what a real object does |
 | `ease-exit` | `cubic-bezier(0.4, 0, 0.6, 1)` | hover *out*, and the return of anything |
 
-Four kinds of motion:
+Five kinds of motion:
 
 - **Arrival — an animation, not a transition.** [`useRevealOnScroll.js`](src/hooks/useRevealOnScroll.js)
   returns `[ref, shown]`, and the caller flips its children between `opacity-0` and `animate-rise-in`
-  plus one of the four `REVEAL_DELAY` classes the same module exports — `[animation-delay:0ms]` to
-  `240ms`, 80ms apart, because four tiles finishing 240ms apart is a beat and 300ms apart is a queue.
+  plus one of the six `REVEAL_DELAY` classes the same module exports — `[animation-delay:0ms]` to
+  `400ms`, 80ms apart, because four tiles finishing 240ms apart is a beat and 300ms apart is a queue.
+  Read through `revealDelay(index)` rather than by subscript: the array was four entries long until the
+  legal page needed five, and `REVEAL_DELAY[4]` is `undefined`, which lands in a class list as a silent
+  no-op that costs the stagger without looking broken. The accessor clamps to the last rung instead,
+  which is also a taste decision — past ~400ms a cascade reads as a queue, so the tail of a long list
+  arrives together.
   One `IntersectionObserver` per **group** (a grid, a panel), not per tile, at `threshold: 0.15` and
   `rootMargin: '0px 0px -8% 0px'`, disconnected the moment it fires: a reveal that can play backwards
   on the way up the page reads as a glitch rather than an entrance. Eight groups — the feature cards,
@@ -524,6 +529,15 @@ Four kinds of motion:
   keeps the suites green under jsdom and guarantees a crawler sees every section. The hero observes
   nothing at all — it is the first screen, so its paragraph, CTA and three pills carry fixed delays
   (120 / 240 / 360 / 440 / 520ms) and compose themselves while the headline is still typing.
+  The `ref` it hands back is a **callback** ref (a `useState` setter), not a `useRef` object, and that
+  is a correctness detail rather than a preference: a block that mounts *later* than its component —
+  the history page's empty state, which does not exist until its fetch comes back empty — leaves
+  `ref.current` null when the effect first runs, and with `[isRevealed]` as the only dependency
+  nothing ever re-runs it. The block would then sit at `opacity-0` permanently in every browser that
+  *has* an observer, which is the reveal failing closed on the one screen a new account sees first.
+  A state setter re-renders when the node arrives, so the observer follows the element rather than the
+  mount; it is stable across renders, and React calls it with `null` on unmount, which tears the
+  observer down through the same path. No call site reads `.current`, so `ref={…}` is unchanged.
 - **Ambient, always on.** The five blurred blobs drift on **three** incommensurate periods — 19s, 23s
   and 29s — through three waypoints with a 1 → 1.08 scale breath, each with its own negative
   `[animation-delay:-Ns]`. One period phase-shifted five ways is still one period: the whole page
@@ -540,16 +554,51 @@ Four kinds of motion:
   `animate-fade-in` + `animate-panel-in` and now leaves on `animate-fade-out` + `animate-panel-out`:
   one `requestClose()` shared by Escape, the backdrop and the Close button raises a `closing` flag and
   unmounts 200ms later, so it fades out instead of vanishing mid-frame. An inspiration swap dissolves
-  through `animate-swap-fade` on exactly the two pictures that moved — the untouched tiles keep their
+  through `animate-develop-in` on exactly the two pictures that moved — the untouched tiles keep their
   DOM nodes and sit still, and the reveal cannot replay on a swap because each `<figure>` is keyed by
-  its **slot** while the `<img>` inside it is keyed by identity.
-- **On load.** [`useImageLoaded.js`](src/hooks/useImageLoaded.js) returns `[ref, isLoaded]`, and the
-  fade goes on the element **wrapping** the `<img>` — the gallery tile's `<button>`, the detail
-  artwork's clip `<div>` — never on the image itself, which already owns `transition-transform` for
-  its zoom. Every picture on the homepage carries `decoding="async"`, so a multi-megabyte PNG cannot
-  decode synchronously on the main thread and stall whichever reveal is running as it lands, and the
-  thirteen below the fold carry `loading="lazy"` (the two 32px logo marks in the chrome need neither).
-  The four inspiration pictures take the hint but not the fade: `swap-fade` is already their entrance.
+  its **slot** while the picture inside it is keyed by identity.
+- **On load — a queue, so pictures arrive in reading order.** A browser asks for every visible `<img>`
+  at once, so the thirteen homepage photographs used to finish in *byte* order rather than in the order
+  they are laid out: the gallery's top row is 1.1 / 4.3 / 1.3 / 2.2MB and assembled itself 1, 3, 4, 2,
+  the two lower cards 4, 1, 2, 3, the inspiration grid 2, 4, 3, 1.
+  [`useImageQueue.js`](src/hooks/useImageQueue.js) fixes the cause and not just the symptom:
+  `useImageQueue(count, isActive)` returns `{ canLoad, isVisible, reportSettled }` indexed by slot, and
+  a picture's **`src` is withheld until its turn**. `IMAGE_IN_FLIGHT = 2` requests are allowed at once,
+  taken from the head of the queue — one would leave the connection idle through every decode, and
+  eight is what the browser was already doing — and every arrival widens the window by one whichever
+  slot it was, so no single slow file can wedge a group. A slot is *shown* only once every slot before
+  it is already showing (`settled.has(revealed)`, which is the whole ordering guarantee) and at least
+  `IMAGE_STEP_MS = 120` after the one before it, because a warm cache settles all four in one tick and
+  would otherwise flash them in together. Three queues, each started by its group's reveal so nothing
+  is requested off screen: the gallery's top row, its two lower cards as **one** flat queue of four so
+  they read left to right instead of racing each other, and the inspiration grid — where the slot is
+  pinned to the *entry* rather than to the panel it currently sits in, so a swap made mid-load cannot
+  pull the `src` back out of a picture that already had one. The whole mechanism fails open on
+  `!canObserve() || prefersReducedMotion()`, the same test `useRevealOnScroll` uses and now exports.
+- **On load — and the fade itself.** [`useImageLoaded.js`](src/hooks/useImageLoaded.js) returns
+  `[ref, isLoaded]`, and all thirteen pictures develop out of a 10px blur on `animate-develop-in`
+  rather than cutting in. It is a **layout** effect, not a plain one: a cached image is `complete`
+  before React can attach a listener, and resolving that after paint would show one frame at
+  `opacity-0` — a flash on every inspiration swap. The animation goes on the element **wrapping** the
+  `<img>` wherever there is one to use — the gallery tile's `<button>`, the detail artwork's clip
+  `<div>`, which already carries the Ken Burns pan on the image inside it — and on the `<img>` itself
+  in the inspiration grid, where the featured picture sizes itself with `lg:h-full` against its
+  `<figure>` and a wrapper in between would collapse that. That is safe only because an animation and
+  a transition collide only when they touch the same property: `develop-in` is opacity and blur,
+  the hover zoom is `transition-transform`. Every picture carries `decoding="async"`, so a
+  multi-megabyte PNG cannot decode synchronously on the main thread and stall whichever reveal is
+  running as it lands, and the thirteen below the fold carry `loading="lazy"` (the two 32px logo marks
+  in the chrome need neither).
+
+  Its `ref` is a **callback ref held in state**, for the same reason `useRevealOnScroll`'s is, and here
+  the case it fixes is the money path: the create page renders its result `<img>` only once a generation
+  has landed, so a `useRef` was still `null` on the one run the effect got, no listener was ever
+  attached, `isLoaded` never flipped, and the finished artwork sat at `opacity-0` — a blank panel after
+  a 30-second wait. A state setter re-renders when the node arrives, so the effect follows the element
+  instead of the mount. It also has to **reset** to `false` when it is handed a *different* `<img>` whose
+  pixels are not here yet, or the second artwork after "Create Another" would inherit the first one's
+  `true` and appear at full opacity with no fade at all. Safe in a layout effect, since nothing has
+  painted yet.
 
 Shared chrome moves on the same rules. The header's dropdown is **always mounted** and toggled through
 `transition-menu duration-200` (`opacity, transform, visibility`) rather than
@@ -561,18 +610,27 @@ takes a `transition-shadow duration-300` elevation shadow past 8px of scroll, fr
 footer's six links finally have `transition-colors duration-200`; their colour used to snap in a single
 frame while the header's nav eased.
 
-Eleven animation tokens and one property list carry all of that, in
+Thirteen animation tokens and one property list carry all of that, in
 [`tailwind.config.js`](tailwind.config.js) beside `shadow-glow`: `rise-in`, `soft-in`, `ken-burns`,
-`drift-slow`, `drift-alt`, `drift-wide`, `swap-fade`, `fade-in`, `fade-out`, `panel-in`, `panel-out`,
-and `transition-menu`.
+`drift-slow`, `drift-alt`, `drift-wide`, `develop-in`, `fade-in`, `fade-out`, `panel-in`, `panel-out`,
+`pop-in`, `shimmer`, and `transition-menu`.
+
+The last two arrived with the legal, create and history pages:
+
+| Token | What it is | Why it is shaped that way |
+| --- | --- | --- |
+| `pop-in` | `opacity 0→1` with `scale(0.6)→scale(1)`, 0.45s on `ease-settle`, fill **`backwards`** | The clause number badges: the card rises, then its number lands *into* it 140ms later. `backwards` and not `both` for the reason in the cascade rules below — a `forwards` transform fill would freeze the element and outrank every later transform. |
+| `shimmer` | `background-position` sweep, 1.8s `linear` **`infinite`** | The generating state. The only conditional token on the site: it is applied on `isLoading` alone and always paired with `motion-reduce:animate-none`, because an animation that never ends is the one kind that cannot be allowed to ignore the preference. It needs `bg-[length:200%_100%]` on the element — a gradient sized to its own box has nowhere to travel. |
 
 Three cascade rules are load-bearing, and each one is easy to undo by accident:
 
 - **`rise-in` fills `backwards` — never `forwards` or `both`.** `backwards` holds the 0% frame through
   the `animation-delay`, which is what keeps a staggered card invisible until its turn, and then
   releases the element completely once the animation ends. A `forwards`/`both` transform animation
-  would permanently outrank the `hover:-translate-y-1` on the same card. `swap-fade` gets away with
-  `both` only because it animates opacity and blur and never touches `transform`.
+  would permanently outrank the `hover:-translate-y-1` on the same card. `develop-in` gets away with
+  `both` only because it animates opacity and blur and never touches `transform` — and it needs it: the
+  backwards half holds the 0% frame on the very frame the class flips, which is what makes a picture's
+  arrival flash-free instead of a one-frame pop.
 - **The stagger is an `animation-delay`, never a `delay-*` class.** `delay-*` is `transition-delay`,
   and it applies to *every* transitioned property — which is why the fourth card in a grid used to hold
   its hover glow still for 300ms before it began to fade, with `hover:delay-0` patching only the way
@@ -583,6 +641,52 @@ Three cascade rules are load-bearing, and each one is easy to undo by accident:
   is written last in the class string — the reason the image fade lives on a wrapper, and the reason
   the header menu uses a single duration and easing in both directions rather than a `duration-150` in
   the closed branch that would silently lose.
+
+### The same vocabulary on the other three pages
+
+Everything above started on the homepage. The legal, create and history pages now share it, with one
+deliberate exception and two reuses worth naming.
+
+- **Legal — sixteen clauses, one observer each.** The exception to "one observer per group". Eight
+  clauses are a page and a half tall, so an index-derived stagger would leave clause eight sitting blank
+  for over half a second while it is the only thing on screen: here the scroll *is* the cadence, which is
+  why the only delay inside a clause is the 140ms on its badge. The two storage columns do use the group
+  pattern — the column itself on `soft-in` (opacity only, because a container sliding while its five
+  children slide reads as mush) and its five points on `revealDelay(0…4)`, which is the rung the ladder
+  grew for. This is also the page most exposed to a reveal that failed *closed*, hence
+  [`LegalPage.test.jsx`](src/LegalPage.test.jsx): sixteen invisible paragraphs of policy would be a real
+  failure rather than a cosmetic one. Its three photographs develop out of a blur through a local
+  `LegalArtwork` child — the page had no load fade at all — and its four buttons, which answered at
+  Tailwind's default 150ms `ease` because their transitions named neither a duration nor a curve, now run
+  the site's pair.
+- **Create — the wait, made legible.** A generation takes 5 to 30 seconds, and the only thing that used
+  to change in that window was a button label going from `Transform to Ghibli Art` to `Transforming...`.
+  [`GeneratingPanel.jsx`](src/components/GeneratingPanel.jsx) replaces the result panel with the
+  `shimmer` sweep, the same spinner ring `ColdStartNotice` uses, and a line naming the real number, all
+  under `role="status"` so the wait is announced rather than merely visible. The drop zone answers a drag
+  at last — its `onDragOver`/`onDragLeave` handlers existed and produced nothing visible — and the active
+  tab's underline is now an absolutely-positioned span growing `origin-left scale-x-0 → 100` instead of a
+  `border-b-2`, which also removes a latent jitter: a 2px bottom border made the active button taller
+  than its neighbour inside an `items-center` row, so both labels shifted about a pixel on every switch.
+- **History — the homepage queue, reused whole.** Twelve cards each fire their own authenticated blob
+  `fetch`, so the grid used to fill in byte order: the exact defect `useImageQueue` exists to fix,
+  reproduced on another page. [`GenerationGrid.jsx`](src/components/GenerationGrid.jsx) now owns one
+  queue and one reveal for the grid and hands each card its slot — and because `HistoryPage` renders it
+  as `<GenerationGrid key={page} …>`, a page change remounts it with an empty `settled` set. That is how
+  the queue resets **at no cost to the hook**: `useImageQueue`'s signature is untouched, so the
+  homepage's three queues and their six tests keep their exact meaning. `RecentGenerations` deliberately
+  has no key — it has no pagination, and a newly prepended row must not restart the queue for the three
+  below it. The `<article>` reveals with the grid so the layout is there immediately; only the picture
+  inside waits its turn, gated on `Boolean(imageUrl) && isVisible(slot)` so a card that finds itself
+  below `revealed` before its bytes land keeps its placeholder instead of flashing an empty frame. Two
+  details in the card are load-bearing: `canLoad(slot)` is read into a boolean in the render body and
+  never passed as an effect dependency (its identity changes every time *any* card settles, which would
+  abort and restart all twelve fetches on each arrival), and `reportSettled(slot)` lives in its own
+  effect keyed on the slot rather than in the fetch's `finally` — deleting a row shifts every card
+  beneath it up one, and a card holding bytes has to re-report under its new index or the queue wedges
+  on a slot nobody will fill. The six loading skeletons, which used to pulse in perfect lockstep, are
+  now [`GenerationSkeleton.jsx`](src/components/GenerationSkeleton.jsx) with the pulse staggered 120ms
+  apart.
 
 ## Tech stack
 
@@ -674,7 +778,7 @@ The runner is configured in [`vitest.config.mjs`](vitest.config.mjs) rather than
 `setupFiles: './src/setupTests.js'`, which is the single line that pulls in
 `@testing-library/jest-dom` and gives every file `toBeInTheDocument`.
 
-Seven suites, all sitting flat at `src/*.test.jsx`:
+Ten suites, all sitting flat at `src/*.test.jsx`:
 
 - **[`App.test.jsx`](src/App.test.jsx)** renders the whole `<App />` — router, `AuthProvider` and
   all — and asserts the hero heading is on screen, through `getByRole('heading', { name })` because
@@ -692,21 +796,40 @@ Seven suites, all sitting flat at `src/*.test.jsx`:
   visible count never rises by more than 1; the last character lands inside a human 2.5–5s window;
   and the caret is solid while keys are landing but writes a value strictly between 0 and 1 while it
   is idle, which is the fade rather than a flick.
-- **[`useRevealOnScroll.test.jsx`](src/useRevealOnScroll.test.jsx)** — three tests over the scroll
-  reveal, and all three are about failing *open*. With no `IntersectionObserver` at all — jsdom, and
+- **[`useRevealOnScroll.test.jsx`](src/useRevealOnScroll.test.jsx)** — five tests over the scroll
+  reveal, and three of them are about failing *open*. With no `IntersectionObserver` at all — jsdom, and
   every crawler — the content is simply there rather than permanently invisible; with one stubbed, the
   block starts hidden, ignores a non-intersecting entry, reveals on the first intersecting one and
   disconnects immediately, and the observer is asserted to have been built with the exact
   `REVEAL_THRESHOLD` / `REVEAL_ROOT_MARGIN` the module exports, so retuning them is a deliberate act;
-  under reduced motion it is revealed on the first render and no observer is constructed at all.
-- **[`useImageLoaded.test.jsx`](src/useImageLoaded.test.jsx)** — four tests over the load fade, and
+  under reduced motion it is revealed on the first render and no observer is constructed at all. The
+  fourth covers the delay ladder: `revealDelay` clamps past its last rung rather than returning
+  `undefined`, which would land in a class list as the string `"undefined"` — no delay, no error, and no
+  stagger. The fifth pins the callback ref: a block rendered only after a state flip is still observed
+  when it arrives, and revealed on intersection. That is the history page's empty state, and with a
+  `useRef` it stayed at `opacity-0` for good — the failure mode is silent, permanent, and invisible to
+  jsdom, since without an `IntersectionObserver` every reveal starts open anyway.
+- **[`useImageLoaded.test.jsx`](src/useImageLoaded.test.jsx)** — six tests over the load fade, and
   three of them are the cases that would leave a hole in the page. An image that has not arrived
   reports `false`; a `load` event flips it to `true`; an **`error`** flips it to `true` as well,
   because a broken file must reveal its alt text rather than sit at zero opacity forever; and an
   already-cached image — `complete` with a `naturalWidth`, which is what a browser hands you on a
   second visit — resolves inside the first effect with no event fired at all. That last one cannot be
   written as "no listener was added": React 19 binds its own `load`/`error` pair to every `<img>` it
-  renders, so counting listeners proves nothing.
+  renders, so counting listeners proves nothing. The last two are the callback ref, in the shape the
+  create page has: an `<img>` that mounts later than its component is still watched and still fades in,
+  and a *second* `<img>` on the same hook starts hidden again rather than inheriting the previous
+  `true`. Both failures were real, and both were invisible here until these tests existed — the first
+  left a finished generation blank, the second let it snap on at full opacity.
+- **[`useImageQueue.test.jsx`](src/useImageQueue.test.jsx)** — six tests over the arrival order, and one
+  of them is the whole point: a slot that finishes **out of turn** must not be shown out of turn, which
+  is the defect the suites were blind to while thirteen pictures appeared in file-size order. The rest
+  fence the mechanism in — only `IMAGE_IN_FLIGHT` slots may request their file at rest, nothing is
+  requested at all before the group's reveal, an out-of-turn arrival still widens the window (so one
+  slow file cannot wedge a group), the head appears immediately while the next waits `IMAGE_STEP_MS`
+  behind it on fake timers, and both escape hatches hand over every picture at once. Note the stubbed
+  `IntersectionObserver`: without it the hook correctly fails open in jsdom and every assertion here
+  would be vacuously true.
 - **[`Header.test.jsx`](src/Header.test.jsx)** — four tests over the one piece of chrome with a real
   regression risk. The dropdown is always in the DOM now and toggled through `visibility`, so the
   tests pin the class contract in both directions (`invisible pointer-events-none opacity-0` ↔
@@ -729,6 +852,25 @@ Seven suites, all sitting flat at `src/*.test.jsx`:
   is still retryable. And a bare `TypeError: Failed to fetch` — no `status` at all — reads as
   "Cannot reach Ghibli AI". Its docblock says why it exists: the manual equivalent would need a
   Stability key with an empty balance, which is not something you can arrange on demand.
+- **[`LegalPage.test.jsx`](src/LegalPage.test.jsx)** — four tests, and they exist because this is the
+  one page where a reveal that failed *closed* would hide something that matters: sixteen clauses of
+  terms and privacy text, each now gated on its own `IntersectionObserver`. jsdom implements none, so the
+  suite *is* that browser, and it asserts that every clause title is present, that not one card is left
+  at `opacity-0`, that both numbered badges carry `animate-pop-in` with a static
+  `[animation-delay:140ms]` (a template literal there would emit no class at all), and that both storage
+  columns show all five of their points — the fifth on the `revealDelay(4)` rung that used to be
+  `undefined`. The clause count is asserted too, so a dropped clause fails here rather than quietly.
+- **[`GenerationGrid.test.jsx`](src/GenerationGrid.test.jsx)** — three tests over the sharp edge of the
+  history queue, which is that it *withholds a request*. With no observer every card must still ask for
+  its blob, because a grid that wedges is far worse than one out of order; a rejected fetch must settle
+  its own slot, so a 404 cannot hold every card below it forever; and a slot whose bytes have not landed
+  must show its placeholder while its prompt and metadata stay readable, rather than an empty frame
+  inside a `cursor-zoom-in` button. Ordering itself is not retested here — `useImageQueue.test.jsx` owns
+  it. `fetchGenerationImage` is mocked (a real authenticated request to a backend that is not running)
+  and `URL.createObjectURL`/`revokeObjectURL` are assigned once for the whole file rather than stubbed
+  per test: the card revokes from an effect *cleanup*, which runs inside Testing Library's own
+  `afterEach`, and vitest runs `afterEach` hooks in reverse registration order — so anything torn down
+  in this file would already be gone by the time the unmount needed it.
 
 `npm run build` type-checks nothing — there is no TypeScript here — but it does fail on an
 unresolved import, and it is the only place the production `import.meta.env.PROD` branch in
@@ -960,19 +1102,24 @@ ghbli-art-generator/
     ├── main.jsx               # createRoot
     ├── App.jsx                # Thirteen routes, ProtectedRoute, scroll restoration
     ├── index.css              # @layer base + .btn-brand / .glass-panel
-    ├── components/            # 24 files — pages and sections, no library
+    ├── components/            # 27 files — pages and sections, no library
+    │                          #   incl. GenerationGrid (one queue + one reveal per grid),
+    │                          #   GenerationSkeleton (staggered pulse), GeneratingPanel (the 5–30s wait)
     ├── context/               # AuthContext: the only context in the app
     ├── data/                  # homeData.js, legalData.js — all static copy
-    ├── hooks/                 # useGenerationHistory, useBackendWakeUp, useTypewriter, useRevealOnScroll, useImageLoaded
+    ├── hooks/                 # useGenerationHistory, useBackendWakeUp, useTypewriter, useRevealOnScroll, useImageLoaded, useImageQueue
     ├── services/              # apiClient, authStorage, generationDraftStore, generationEvents
     ├── utils/                 # authRedirect, generationErrors, generationLabels, motionPreference
     ├── assets/                # S1–S15 plus the gallery and inspiration images
     ├── App.test.jsx           # Tests sit flat beside the code they cover
     ├── ColdStartNotice.test.jsx
     ├── GenerationErrorNotice.test.jsx
+    ├── GenerationGrid.test.jsx
     ├── Header.test.jsx
     ├── HeroHeadline.test.jsx
+    ├── LegalPage.test.jsx
     ├── useImageLoaded.test.jsx
+    ├── useImageQueue.test.jsx
     └── useRevealOnScroll.test.jsx
 ```
 

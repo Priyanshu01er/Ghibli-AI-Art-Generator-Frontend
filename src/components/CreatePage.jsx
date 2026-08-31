@@ -13,6 +13,15 @@ function asKind(value) {
   return value === 'photo' || value === 'text' ? value : null;
 }
 
+/**
+ * Mapped rather than written twice, so the underline markup below — which is now four lines instead
+ * of one class — exists once. Order is the on-screen order.
+ */
+const TABS = [
+  { kind: 'photo', label: 'Photo to Art' },
+  { kind: 'text', label: 'Text to Art' },
+];
+
 function CreatePage() {
   const { user } = useAuth();
   const userId = user?.userId ?? null;
@@ -49,30 +58,34 @@ function CreatePage() {
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
           {/* gap-8 + text-lg put the two tab labels 32px apart in a 343px row; tighter and one
               size down below sm so they read as a pair of tabs, not two separate buttons. */}
-          <div className="mb-6 flex items-center justify-center border-b border-stone-200/80 text-base font-semibold text-slate-500 sm:mb-8 sm:text-lg">
+          {/* `animate-rise-in` rather than a `useRevealOnScroll` reveal: this row is the first thing
+              on the page, so an observer would only ever fire on mount anyway. */}
+          <div className="mb-6 flex animate-rise-in items-center justify-center border-b border-stone-200/80 text-base font-semibold text-slate-500 motion-reduce:animate-none sm:mb-8 sm:text-lg">
             <div className="flex gap-4 sm:gap-8">
-              <button
-                type="button"
-                onClick={() => handleTabClick('photo')}
-                className={`px-2 pb-3 transition-colors ${
-                  activeTab === 'photo'
-                    ? 'border-b-2 border-brand-700 text-brand-800'
-                    : 'hover:text-brand-700'
-                }`}
-              >
-                Photo to Art
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTabClick('text')}
-                className={`px-2 pb-3 transition-colors ${
-                  activeTab === 'text'
-                    ? 'border-b-2 border-brand-700 text-brand-800'
-                    : 'hover:text-brand-700'
-                }`}
-              >
-                Text to Art
-              </button>
+              {TABS.map(({ kind, label }) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => handleTabClick(kind)}
+                  // `relative` for the sliding underline below; the colour keeps its own transition.
+                  className={`relative px-2 pb-3 transition-colors duration-200 ${
+                    activeTab === kind ? 'text-brand-800' : 'hover:text-brand-700'
+                  }`}
+                >
+                  {label}
+                  {/* This used to be `border-b-2` on the active button, which had two problems: it
+                      could only appear, never move, and a 2px bottom border made the active button
+                      taller than its neighbour inside an `items-center` row — so both labels shifted
+                      about a pixel on every switch. An absolutely-positioned span has no box, so the
+                      jitter is gone, and it can grow from the left instead of blinking on. */}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-x-0 bottom-0 h-0.5 origin-left rounded-full bg-brand-700 transition-transform duration-300 ease-entrance ${
+                      activeTab === kind ? 'scale-x-100' : 'scale-x-0'
+                    }`}
+                  />
+                </button>
+              ))}
             </div>
           </div>
 
@@ -87,7 +100,10 @@ function CreatePage() {
           <RecentGenerations />
 
           <div className="mt-6 text-center text-sm text-slate-500">
-            <Link to="/#home" className="font-semibold text-brand-700 hover:text-brand-800">
+            <Link
+              to="/#home"
+              className="font-semibold text-brand-700 transition-colors duration-200 hover:text-brand-800"
+            >
               Back to Home
             </Link>
           </div>

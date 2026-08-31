@@ -23,8 +23,9 @@ module.exports = {
         card: '0 12px 30px rgba(15, 23, 42, 0.08)',
         glow: '0 18px 40px rgba(15, 118, 110, 0.25)',
       },
-      // The homepage's motion vocabulary. Tokens rather than one-off CSS so every section reaches for
-      // the same movements, and every use pairs with `motion-reduce:animate-none`.
+      // The site's motion vocabulary — started on the homepage, now shared by the legal, create and
+      // history pages too. Tokens rather than one-off CSS so every section reaches for the same
+      // movements, and every use pairs with `motion-reduce:animate-none`.
       // Three named curves, so "how something arrives" is one decision instead of nine `ease-out`s.
       transitionTimingFunction: {
         entrance: 'cubic-bezier(0.16, 1, 0.3, 1)', // Expo-out: a long tail, so an arrival settles rather than stops
@@ -43,10 +44,11 @@ module.exports = {
           '0%': { transform: 'scale(1)' },
           '100%': { transform: 'scale(1.06) translate3d(-1.5%, -1%, 0)' },
         },
-        // The inspiration swap: a picture developing rather than a cut. Opacity and blur only — a
-        // transform here would fight (and, with `both`, permanently outrank) the hover zoom.
-        'swap-fade': {
-          from: { opacity: '0', filter: 'blur(8px)' },
+        // Every picture's arrival, and the inspiration swap: a photograph developing rather than a
+        // cut. Opacity and blur only — a transform here would fight (and, with `both`, permanently
+        // outrank) the hover zoom that each of these images already owns.
+        'develop-in': {
+          from: { opacity: '0', filter: 'blur(10px)' },
           to: { opacity: '1', filter: 'blur(0)' },
         },
         // Every scroll reveal on the page. An animation rather than a transition on purpose: the
@@ -83,10 +85,27 @@ module.exports = {
           from: { opacity: '1', transform: 'none' },
           to: { opacity: '0', transform: 'scale(0.98) translateY(6px)' },
         },
+        // A small thing landing *into* a container that has already arrived — the numbered badges on
+        // the legal clauses. Starts at 0.6 rather than 0.9 because an 8px-radius circle needs a large
+        // relative change to read as a pop at all.
+        'pop-in': {
+          from: { opacity: '0', transform: 'scale(0.6)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+        // The only sweep on the site: a highlight crossing the create page's result panel while the
+        // model works. 100% → 0% and not the reverse, because the gradient is twice the panel's width,
+        // so a *decreasing* background-position is what moves the highlight left to right.
+        shimmer: {
+          from: { backgroundPosition: '100% 0' },
+          to: { backgroundPosition: '0% 0' },
+        },
       },
       animation: {
         'ken-burns': 'ken-burns 32s ease-in-out infinite alternate', // 24s → 32s: less movement per frame
-        'swap-fade': 'swap-fade 0.55s cubic-bezier(0.16, 1, 0.3, 1) both', // Same curve as every other arrival
+        // 0.7s and `ease-entrance`, so a picture landing reads as the same kind of event as a section
+        // revealing. `both` is load-bearing: its backwards half holds the 0% frame on the frame the
+        // class flips, which is what makes the arrival flash-free instead of a one-frame pop.
+        'develop-in': 'develop-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both',
         // `backwards`, emphatically not `forwards`/`both`: it holds the 0% frame through the stagger
         // delay and then hands the element back to its own styles, so a revealed card's `hover:`
         // transform still works. A filled transform animation would outrank it forever.
@@ -103,6 +122,14 @@ module.exports = {
         'fade-out': 'fade-out 0.16s ease-in forwards', // `forwards`: holds transparent until React unmounts it
         'panel-in': 'panel-in 0.26s cubic-bezier(0.22, 0.61, 0.36, 1) both',
         'panel-out': 'panel-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards',
+        // `ease-settle`'s curve, written out because the `animation` shorthand cannot name a
+        // `transitionTimingFunction` token — the overshoot is the whole point of a pop.
+        // `backwards` for the same reason as `rise-in`: this animates `transform`, and a filled
+        // transform would outrank anything the element did later.
+        'pop-in': 'pop-in 0.45s cubic-bezier(0.34, 1.2, 0.64, 1) backwards',
+        // The one token that loops without an end besides the blobs, so every use of it is both
+        // conditional on the work actually being in progress and paired with `motion-reduce`.
+        shimmer: 'shimmer 1.8s linear infinite',
       },
     },
   },

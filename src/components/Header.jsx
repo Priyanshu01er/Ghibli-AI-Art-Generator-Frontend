@@ -28,7 +28,7 @@ function MenuIcon() {
  * by the order they are written, so `Log out` gets its own string instead of appending to the
  * default one.
  */
-const MENU_ROW = 'flex min-h-[44px] w-full items-center rounded-xl px-3 text-base font-medium transition-colors'; // 44px = smallest comfortable tap target
+const MENU_ROW = 'flex min-h-[44px] w-full items-center rounded-xl px-3 text-base font-medium transition-colors duration-200'; // 44px = smallest comfortable tap target; 200ms is the page's hover tempo
 const MENU_ROW_DEFAULT = `${MENU_ROW} text-slate-700 hover:bg-brand-50 hover:text-brand-600`;
 const MENU_ROW_DANGER = `${MENU_ROW} text-slate-700 hover:bg-red-50 hover:text-red-600`;
 
@@ -189,7 +189,9 @@ function Header() {
             <div className="hidden items-center gap-2 sm:flex sm:gap-3">
               <Link
                 to="/login"
-                className="rounded-xl px-3 py-2.5 text-base font-semibold text-slate-700 transition-colors hover:text-brand-600"
+                /* `duration-200`, matching the nav links above: bare `transition-colors` runs at
+                   Tailwind's default 150ms, so these two neighbours answered at different speeds. */
+                className="rounded-xl px-3 py-2.5 text-base font-semibold text-slate-700 transition-colors duration-200 hover:text-brand-600"
               >
                 Log in
               </Link>
@@ -214,7 +216,7 @@ function Header() {
               aria-expanded={isMenuOpen}
               aria-controls="header-menu"
               aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
-              className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition-colors ${
+              className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition-colors duration-200 ${
                 isMenuOpen
                   ? 'border-brand-500 bg-brand-50 text-brand-600'
                   : 'border-stone-300 bg-white/70 text-slate-700 hover:border-brand-500 hover:text-brand-600'

@@ -66,7 +66,12 @@ function GenerationErrorNotice({ error, onRetry, isRetrying = false }) {
 
   return (
     // role="alert" so a screen reader announces the failure instead of it only appearing visually.
-    <div role="alert" className={`mt-3 rounded-2xl border px-4 py-3 ring-1 ring-inset ring-white/40 ${styles.card}`}>
+    // `panel-in` and not `rise-in`: 0.26s, because a failure has to be noticed, and the site's 0.7s
+    // reveal is a leisurely entrance for the one thing on screen that is asking for a decision.
+    <div
+      role="alert"
+      className={`mt-3 animate-panel-in rounded-2xl border px-4 py-3 ring-1 ring-inset ring-white/40 motion-reduce:animate-none ${styles.card}`}
+    >
       <div className="flex items-start gap-3">
         {/* strokeWidth 1.8 and the 20px box match the inline icons in FeaturesSection. */}
         <svg
@@ -92,7 +97,7 @@ function GenerationErrorNotice({ error, onRetry, isRetrying = false }) {
               type="button"
               onClick={onRetry}
               disabled={waiting || isRetrying}
-              className={`mt-3 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${styles.button} ${
+              className={`mt-3 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors duration-200 ${styles.button} ${
                 waiting || isRetrying ? 'cursor-not-allowed opacity-60' : ''
               }`}
             >
