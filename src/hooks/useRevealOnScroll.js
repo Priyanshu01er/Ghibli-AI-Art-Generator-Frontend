@@ -33,17 +33,20 @@ export const REVEAL_ROOT_MARGIN = '0px 0px -8% 0px';
  *
  * 80ms rather than 100ms: four tiles land 240ms apart, which reads as a beat rather than a queue.
  *
- * Six entries rather than the original four: the legal hero stacks five items and each of its storage
- * columns lists five points. Every string must stay written out in full — Tailwind's JIT scans source
- * text, so `[animation-delay:${index * 80}ms]` produces a class that is never generated.
+ * Eight entries now: the WonderSection has 6 postcards plus title and closing line all staggering in
+ * sequence. The legal hero and storage columns also benefit from the extended sequence. Every string
+ * must stay written out in full — Tailwind's JIT scans source text, so `[animation-delay:${index * 80}ms]`
+ * produces a class that is never generated.
  */
 export const REVEAL_DELAY = [
   '[animation-delay:0ms]',    // Quadratic ease-out: faster arrivals at the head,
   '[animation-delay:60ms]',   // so the first few tiles feel like a natural cluster
   '[animation-delay:130ms]',  // rather than a mechanically-spaced queue. The tail
   '[animation-delay:210ms]',  // spreads out just enough that the last item's arrival
-  '[animation-delay:300ms]',  // still reads as its own event. 400ms cap kept.
-  '[animation-delay:400ms]',
+  '[animation-delay:300ms]',  // still reads as its own event.
+  '[animation-delay:400ms]',  // Extended for WonderSection: 6 postcards need unique timing
+  '[animation-delay:500ms]',  // Ensures the 5th card has distinct stagger, not shared with 4th
+  '[animation-delay:600ms]',  // The 6th card ("The world after rain") gets its own cascade point
 ];
 
 /**

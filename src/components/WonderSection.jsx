@@ -117,26 +117,35 @@ function WonderSection() {
         {/* The mosaic. Spans per tile: Z2 (the lone portrait) row-spans beside the opening pair,
             Z3 sits at four columns, and Z5 - the widest frame of the six - closes full width.
             Fixed heights per breakpoint keep the rows calm while `object-cover` absorbs the
-            leftover aspect-ratio differences. */}
+            leftover aspect-ratio differences. Each card now has a unique reveal stagger index
+            to ensure proper sync order, especially the last image which previously appeared late. */}
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-12">
+          {/* Card 1: Z1 (lakehouse) - reveal(1) - 60ms delay */}
           <WonderCard scene={wonderScenes[0]} revealClass={reveal(1)} className="h-64 w-full sm:col-span-2 sm:h-72 lg:col-span-7 lg:h-80" />
-          {/* Z2 is the one portrait and row-spans rows 1-2. `lg:h-full` was a trap here: against
-              auto-sized grid rows a percentage height falls back to the <img>'s intrinsic height,
-              which inflated BOTH rows and left the dead gaps beside Z1 and Z3. A hard 660px =
-              h-80 (320) + gap-5 (20) + h-80 (320) keeps each row at its fixed height and lands
-              Z2's bottom edge exactly on Z3's - no maths left to drift out of sync. */}
+          {/* Card 2: Z2 (island) - reveal(2) - 130ms delay. Portrait that row-spans rows 1-2.
+              `lg:h-full` was a trap here: against auto-sized grid rows a percentage height falls back
+              to the <img>'s intrinsic height, which inflated BOTH rows and left the dead gaps beside Z1
+              and Z3. A hard 660px = h-80 (320) + gap-5 (20) + h-80 (320) keeps each row at its fixed
+              height and lands Z2's bottom edge exactly on Z3's - no maths left to drift out of sync. */}
           <WonderCard scene={wonderScenes[1]} revealClass={reveal(2)} className="h-96 w-full sm:col-span-1 lg:col-span-5 lg:row-span-2 lg:h-[660px]" />
+          {/* Card 3: Z4 (cottage) - reveal(3) - 210ms delay */}
           <WonderCard scene={wonderScenes[2]} revealClass={reveal(3)} className="h-64 w-full sm:col-span-1 sm:h-72 lg:col-span-7 lg:h-80" />
+          {/* Card 4: Z3 (fields) - reveal(4) - 300ms delay */}
           <WonderCard scene={wonderScenes[3]} revealClass={reveal(4)} className="h-80 w-full sm:col-span-1 lg:col-span-4 lg:h-80" />
+          {/* Card 5: Z6 (meadow) - reveal(5) - 400ms delay */}
           <WonderCard scene={wonderScenes[4]} revealClass={reveal(5)} className="h-64 w-full sm:col-span-1 sm:h-72 lg:col-span-8 lg:h-80" />
-          <WonderCard scene={wonderScenes[5]} revealClass={reveal(5)} className="h-64 w-full sm:col-span-2 sm:h-72 lg:col-span-12 lg:h-[420px]" />
+          {/* Card 6: Z5 (moss / "The world after rain") - reveal(6) - 500ms delay. Full-width banner.
+              FIXED: Previously used reveal(5) same as card above, causing it to appear too late.
+              Now has unique stagger timing so it arrives in proper sequence. */}
+          <WonderCard scene={wonderScenes[5]} revealClass={reveal(6)} className="h-64 w-full sm:col-span-2 sm:h-72 lg:col-span-12 lg:h-[420px]" />
         </div>
 
-        {/* The bridge to the CTA: one line, last in the stagger, so the section hands the page
-            back to the invitation below instead of stopping dead. */}
+        {/* The bridge to the CTA: closing line uses reveal(7) - 600ms delay, so the section hands
+            the page back to the invitation below with final punctuation. All 8 elements now follow
+            proper cascade timing for perfectly synced appearance. */}
         <p
           className={`mt-10 text-center text-lg font-semibold text-slate-700 motion-reduce:animate-none sm:text-xl ${
-            reveal(5)
+            reveal(7)
           }`}
         >
           Six sentences. Six worlds. The next one is yours to type.

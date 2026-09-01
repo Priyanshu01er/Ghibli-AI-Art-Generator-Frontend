@@ -152,14 +152,15 @@ test('prefers-reduced-motion reveals immediately and never constructs an observe
 });
 
 test('revealDelay clamps past the end of the ladder instead of returning undefined', () => {
-  // The bug this exists to prevent is silent: `REVEAL_DELAY[6]` is `undefined`, which lands in a
+  // The bug this exists to prevent is silent: `REVEAL_DELAY[8]` is `undefined`, which lands in a
   // template-literal class list as the string "undefined" — no delay, no error, no stagger. The
-  // legal page's storage columns list five points and its hero stacks five items, so the ladder is
-  // read right up to its last rung and a sixteen-clause page would have hit this first.
+  // legal page's storage columns list five points, the hero stacks five items, and the WonderSection
+  // has 8 visual elements (title + 6 cards + closing line), so the ladder is read right up to its
+  // last rung and a sixteen-clause page would have hit this first.
   expect(revealDelay(0)).toBe(REVEAL_DELAY[0]);
-  expect(revealDelay(REVEAL_DELAY.length - 1)).toBe('[animation-delay:400ms]');
+  expect(revealDelay(REVEAL_DELAY.length - 1)).toBe('[animation-delay:600ms]');
   // Past the end: the last rung, not `undefined`. Deliberately clamped rather than extended —
-  // beyond ~400ms a stagger reads as a queue, so the tail of a long list arrives together.
-  expect(revealDelay(REVEAL_DELAY.length)).toBe('[animation-delay:400ms]');
-  expect(revealDelay(99)).toBe('[animation-delay:400ms]');
+  // beyond ~600ms a stagger reads as a queue, so the tail of a long list arrives together.
+  expect(revealDelay(REVEAL_DELAY.length)).toBe('[animation-delay:600ms]');
+  expect(revealDelay(99)).toBe('[animation-delay:600ms]');
 });
