@@ -52,6 +52,10 @@ function Footer() {
           tinted down to whisper level so they read as light on water, not lamps. */}
       <div aria-hidden="true" className="pointer-events-none absolute -left-24 bottom-8 h-72 w-72 animate-drift-slow rounded-full bg-brand-100/60 blur-3xl motion-reduce:animate-none" />
       <div aria-hidden="true" className="pointer-events-none absolute -right-20 top-10 h-64 w-64 animate-drift-wide rounded-full bg-accent-100/70 blur-3xl motion-reduce:animate-none" />
+      {/* A subtle under-glow keeps the wave realistic: the canvas is still transparent in the middle,
+          but the footer gets a soft, pearly depth behind the content so the ripple feels like a real
+          pond rather than a large animated overlay. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-4 bottom-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75),rgba(186,230,253,0.18)_35%,rgba(255,255,255,0)_70%)]" />
       {/* The water. useWaterRipple listens on this footer (every pointermove over the links
           bubbles up to it) and drops ripples that propagate and shade like lit water from the
           cursor's position. Reduced motion and test environments leave it a transparent sheet. */}

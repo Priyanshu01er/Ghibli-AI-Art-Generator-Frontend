@@ -1,5 +1,17 @@
 import { render, screen } from '@testing-library/react';
-import App from './App';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import App, { resetScrollBehaviorForTopRoute } from './App';
+
+beforeEach(() => {
+  document.documentElement.style.scrollBehavior = '';
+  document.body.style.scrollBehavior = '';
+});
+
+afterEach(() => {
+  document.documentElement.style.scrollBehavior = '';
+  document.body.style.scrollBehavior = '';
+  vi.restoreAllMocks();
+});
 
 test('renders homepage hero heading', () => {
   render(<App />);
@@ -11,4 +23,19 @@ test('renders homepage hero heading', () => {
     name: /Transform Your Photos into Ghibli Art with Ghibli AI/i,
   });
   expect(heading).toBeInTheDocument();
+});
+
+test('resetScrollBehaviorForTopRoute forces the scroll box to auto and restores it afterward', () => {
+  document.documentElement.style.scrollBehavior = 'smooth';
+  document.body.style.scrollBehavior = 'smooth';
+
+  const restore = resetScrollBehaviorForTopRoute();
+
+  expect(document.documentElement.style.scrollBehavior).toBe('auto');
+  expect(document.body.style.scrollBehavior).toBe('auto');
+
+  restore();
+
+  expect(document.documentElement.style.scrollBehavior).toBe('smooth');
+  expect(document.body.style.scrollBehavior).toBe('smooth');
 });

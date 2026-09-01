@@ -19,6 +19,25 @@ import SignupPage from './components/SignupPage';
 // same page and also open at the top now — jumping to a half is a same-page click only.
 const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup', '/history', '/legal', '/terms', '/privacy'];
 
+export function resetScrollBehaviorForTopRoute() {
+  const root = document.documentElement;
+  const body = document.body;
+  const previousRootBehavior = root.style.scrollBehavior;
+  const previousBodyBehavior = body.style.scrollBehavior;
+
+  // Force the scrolling box and body to a literal instant scroll while the route settles;
+  // otherwise smooth scroll on the root can still race the route change and trigger the
+  // next section's observers before the legal page is ready to animate.
+  root.style.scrollBehavior = 'auto';
+  body.style.scrollBehavior = 'auto';
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+  return () => {
+    root.style.scrollBehavior = previousRootBehavior;
+    body.style.scrollBehavior = previousBodyBehavior;
+  };
+}
+
 function ScrollToTop() {
   const { pathname } = useLocation();
 
@@ -39,26 +58,13 @@ function ScrollToTop() {
       return;
     }
 
-    // 'behavior: auto' does NOT mean "instant" — per the CSSOM View spec it defers to the
-    // scrolling box's own scroll-behavior, and index.css sets 'scroll-behavior: smooth' on
-    // <html>. So an unpinned scrollTo here is really a smooth scroll from wherever the previous
-    // page was scrolled (the footer of /home, say) to the top, and on the way it swept the
-    // viewport past every section of the new page: each IntersectionObserver fired mid-flight,
-    // every scroll reveal finished off-screen, and pages like /terms looked finished and
-    // motionless the instant they settled. Pinning 'scroll-behavior: auto' on <html> makes the
-    // jump genuinely instant, so the entrance motion plays from the top exactly as it does on a
-    // fresh load.
-    const root = document.documentElement;
-    const previousBehavior = root.style.scrollBehavior;
-    root.style.scrollBehavior = 'auto';
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    // Hand the original behaviour back only once the jump is provably committed — two frames,
-    // not one: a single rAF can fire before the browser has flushed the instant scroll, which
-    // would let the pinned behaviour leak into the next programmatic scroll (the header/footer
-    // section links, which must stay smooth).
+    const restore = resetScrollBehaviorForTopRoute();
+
+    // Restore only after the browser has committed the instant jump; a single frame is too early
+    // and would leak the auto scroll behavior into same-page section links that must stay smooth.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        root.style.scrollBehavior = previousBehavior;
+        restore();
       });
     });
 

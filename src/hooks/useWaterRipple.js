@@ -16,22 +16,22 @@ import { canObserve } from './useRevealOnScroll'; // jsdom has no IntersectionOb
  *                of display rate: a languid pond drift instead of a fast shimmer).
  */
 const SIM_SCALE = 3;
-const DAMPING = 0.981; // Eased from 0.976: slower ripples linger longer before fading, like real water.
+const DAMPING = 0.985; // Slightly more energy is retained so ring motion looks wet and rounded,
+// rather than a stiff, over-damped ripple that dies too quickly.
 /** Run a wave step only on every Nth rAF frame — 3 slows propagation to one-third speed. */
 const STEP_INTERVAL = 3; // 3 = one-third of display-rate speed: a languid pond pace.
 /** Calm frames before the loop parks itself — a rAF loop must not burn battery on still water. */
-const SETTLE_FRAMES = 40;
+const SETTLE_FRAMES = 48;
 /** Largest per-cell change below which the surface counts as still. */
-const CALM_THRESHOLD = 0.05;
+const CALM_THRESHOLD = 0.04;
 /** Cursor-trail drops: small and frequent, so the wake reads as a fingertip drawn through water. */
-const TRAIL_RADIUS = 2;
-const TRAIL_STRENGTH = 170; // Eased from 240: gentler drops to match the slower water — a wake, not a splash.
-/** CSS pixels of travel between trail drops — raised to 24 so a sweep lays down distinct,
-    well-separated rings instead of a crowded, jittery churn (fewer waves, calmer water). */
-const TRAIL_MIN_DISTANCE = 24;
+const TRAIL_RADIUS = 3;
+const TRAIL_STRENGTH = 145; // The motion is now softer and more believable: a fingertip wake, not a sudden splash.
+/** CSS pixels of travel between trail drops — enough space to let each ring settle before the next one arrives. */
+const TRAIL_MIN_DISTANCE = 18;
 /** Click/tap splash: one fat drop, so a press visibly "plunks" the surface. */
-const SPLASH_RADIUS = 5;
-const SPLASH_STRENGTH = 650; // Eased from 850: slow water reads better with a softer "plunk".
+const SPLASH_RADIUS = 6;
+const SPLASH_STRENGTH = 520; // Lowered to keep taps on the calm pond feel like a deliberate plop.
 
 /**
  * A living water surface behind the footer's content.
@@ -170,23 +170,24 @@ export default function useWaterRipple() {
         const row = y * width;
         for (let x = 1; x < width - 1; x++) {
           const i = row + x;
-          // Slope toward the top-left light. The eye reads this lighting — glint bright, shadow
-          // cool — as three-dimensional water rather than as circles on a page.
+          // Stronger directional light keeps the surface looking like real water: a cool undershade
+          // under the crest reads as depth, while the pale highlight glides over it without looking
+          // like a flat, noisy overlay.
           const slope =
-            (current[i - 1] - current[i + 1] + current[i - width] - current[i + width]) * 0.75;
+            (current[i - 1] - current[i + 1] + current[i - width] - current[i + width]) * 0.82;
           const o = i * 4;
           if (slope > 0) {
-            const t = slope < 6 ? slope / 6 : 1; // Clamped, so the brightest crest never clips RGB.
-            data[o] = 255; // Pearl-white specular glint on the crest…
+            const t = slope < 8 ? slope / 8 : 1;
+            data[o] = 255;
             data[o + 1] = 255;
             data[o + 2] = 252;
-            data[o + 3] = 70 * t; // …kept translucent, so it shimmers over the light background.
+            data[o + 3] = 60 * t + 10; // A brighter crest with a little more alpha keeps the glow watery.
           } else {
-            const t = slope > -6 ? -slope / 6 : 1;
-            data[o] = 90; // A soft translucent teal-grey shadow pools in the trough…
-            data[o + 1] = 130;
-            data[o + 2] = 135;
-            data[o + 3] = 55 * t; // …and still water fades to fully transparent.
+            const t = slope > -8 ? -slope / 8 : 1;
+            data[o] = 88;
+            data[o + 1] = 118;
+            data[o + 2] = 132;
+            data[o + 3] = 42 * t + 4; // Deeper but still translucent troughs make the ripples read as 3D.
           }
         }
       }
