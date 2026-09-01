@@ -31,6 +31,7 @@ module.exports = {
         entrance: 'cubic-bezier(0.16, 1, 0.3, 1)', // Expo-out: a long tail, so an arrival settles rather than stops
         settle: 'cubic-bezier(0.34, 1.2, 0.64, 1)', // Hover *in*: a touch of overshoot, which is what a real object does
         exit: 'cubic-bezier(0.4, 0, 0.6, 1)', // Hover *out*, and the way back from anything
+        springIn: 'cubic-bezier(0.34, 1.56, 0.64, 1)', // Stronger overshoot than settle — cards feel like they bounce on hover
       },
       // Only for the header dropdown, which needs `visibility` transitioned alongside the fade so the
       // panel can leave the tab order at the end of its own exit rather than the start.
@@ -99,6 +100,25 @@ module.exports = {
           from: { backgroundPosition: '100% 0' },
           to: { backgroundPosition: '0% 0' },
         },
+        // 3D card entrance: perspective tilt + scale for legal page hero and clause cards.
+        // A gentle X-axis rotation creates depth; 'backwards' holds the tilted frame during
+        // the stagger delay so cards arrive one by one without a blank flash.
+        'card-flip-in': {
+          from: { opacity: '0', transform: 'perspective(800px) rotateX(12deg) translateY(24px) scale(0.96)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+        // Lateral depth entrance: slight Y-axis rotation + translateX for storage columns.
+        // Creates a feeling of objects sliding in from the side with dimensional depth.
+        'float-in': {
+          from: { opacity: '0', transform: 'perspective(800px) rotateY(-6deg) translateX(-12px) translateY(16px)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+        // Gallery tile entrance: dramatic 3D cascade with scale + perspective tilt.
+        // Tiles appear to flip into view from a slight angle, creating a card-deal effect.
+        'gallery-enter': {
+          from: { opacity: '0', transform: 'perspective(600px) rotateX(8deg) scale(0.92)' },
+          to: { opacity: '1', transform: 'none' },
+        },
       },
       animation: {
         'ken-burns': 'ken-burns 32s ease-in-out infinite alternate', // 24s → 32s: less movement per frame
@@ -130,6 +150,13 @@ module.exports = {
         // The one token that loops without an end besides the blobs, so every use of it is both
         // conditional on the work actually being in progress and paired with `motion-reduce`.
         shimmer: 'shimmer 1.8s linear infinite',
+        // 3D card flip: used on legal page hero and clause cards for dimensional entrance.
+        // 0.8s slightly longer than rise-in to let the perspective rotation read fully.
+        'card-flip-in': 'card-flip-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards',
+        // Float in: used on legal page storage columns for lateral depth entrance.
+        'float-in': 'float-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) backwards',
+        // Gallery cascade: used on gallery tiles for dramatic 3D deal effect.
+        'gallery-enter': 'gallery-enter 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards',
       },
     },
   },

@@ -1,6 +1,11 @@
+import useParallax from '../hooks/useParallax';
+import useMagnet from '../hooks/useMagnet';
 import HeroHeadline from './HeroHeadline'; // The h1, now typed in character by character
 
 function HeroSection() {
+  const [blob1Ref, blob1Offset] = useParallax(0.25) // Faster drift: blobs recede more noticeably on scroll for depth;
+  const [blob2Ref, blob2Offset] = useParallax(-0.18) // Negative: this blob moves ahead of the scroll for counter-drift;
+  const magnetRef = useMagnet();
   return (
     // Vertical padding was 80px top / 112px bottom at every width, which on a 667px phone meant
     // the headline started a quarter of the way down the screen. Mobile-first, stepping up.
@@ -13,12 +18,16 @@ function HeroSection() {
           18s loop made every blob on the page re-sync every 18s, which is a heartbeat. */}
       <div
         aria-hidden="true"
+        ref={blob1Ref}
+        style={{ translate: `0 ${blob1Offset}px` }}
         className="pointer-events-none absolute -left-24 -top-16 -z-10 h-64 w-64 animate-drift-slow rounded-full bg-brand-100/70 blur-3xl motion-reduce:animate-none"
       />
       <div
         aria-hidden="true"
         // `drift-alt` traces three waypoints rather than one line out and back, and the negative
         // delay drops it mid-path — two blobs moving in lockstep read as the page itself wobbling.
+        ref={blob2Ref}
+        style={{ translate: `0 ${blob2Offset}px` }}
         className="pointer-events-none absolute -right-20 top-24 -z-10 h-72 w-72 animate-drift-alt rounded-full bg-accent-300/40 blur-3xl [animation-delay:-9s] motion-reduce:animate-none"
       />
       {/* Moved into its own component, unchanged in wording, sizing and colour: the typing
@@ -36,6 +45,8 @@ function HeroSection() {
         href="#create"
         // `soft-in` (opacity only), not `rise-in`: `.btn-brand:hover` lifts this element, and a
         // transform in the entrance would be the thing that keyframe animation outranks.
+        ref={magnetRef}
+        style={{ translate: "var(--magnet-x, 0) var(--magnet-y, 0)" }}
         className="btn-brand mt-8 animate-soft-in [animation-delay:240ms] motion-reduce:animate-none sm:mt-10"
       >
         Try Ghibli AI

@@ -1,3 +1,4 @@
+import useParallax from '../hooks/useParallax';
 import { useEffect, useState } from 'react'; // State holds which quote owns the large panel; the effect reports to the queue
 import useImageLoaded from '../hooks/useImageLoaded'; // These four had no load fade at all until now
 import useImageQueue from '../hooks/useImageQueue'; // ...and no order either: 2.4/0.6/2.1/1.4MB appeared 2, 4, 3, 1
@@ -78,6 +79,7 @@ function InspirationPicture({ item, queue, className }) {
  * `GallerySection` dropped `whitespace-nowrap` after it pushed the page sideways on a phone.
  */
 function InspirationSection() {
+  const [blobRef, blobOffset] = useParallax(0.1);
   // Only the arrangement is state; `ghibliQuotes` itself is never mutated, so the caption row
   // and the panels always read the same four entries.
   const [order, setOrder] = useState(INITIAL_ORDER);
@@ -120,7 +122,7 @@ function InspirationSection() {
           whole page a heartbeat, and three incommensurate periods (19s/23s/29s) never re-sync. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -right-16 top-8 -z-10 h-64 w-64 animate-drift-wide rounded-full bg-accent-300/40 blur-3xl [animation-delay:-12s] motion-reduce:animate-none"
+        ref={blobRef} style={{ translate: `0 ${blobOffset}px` }} className="pointer-events-none absolute -right-16 top-8 -z-10 h-64 w-64 animate-drift-wide rounded-full bg-accent-300/40 blur-3xl [animation-delay:-12s] motion-reduce:animate-none"
       />
 
       <h2 className="text-center font-heading text-3xl font-bold text-slate-900 sm:text-4xl lg:text-5xl">

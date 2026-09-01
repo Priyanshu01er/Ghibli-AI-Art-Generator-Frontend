@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom'; // The lightbox mounts on <body> — see the portal note at the JSX below
 import { fetchGenerationImage } from '../services/apiClient';
 import prefersReducedMotion from '../utils/motionPreference'; // Skip the lightbox exit, don't stall on it
 import {
@@ -387,7 +388,16 @@ function GenerationCard({
         </div>
       </div>
 
-      {isExpanded && canPreview ? (
+      {/* The lightbox is a portal, and that is a bug fix rather than a style choice. A
+          "position: fixed" box is positioned against the nearest ancestor that carries a
+          transform — and this card lifts on hover (hover:-translate-y-1), so the image you
+          click to open this panel sits inside a hovered, transformed card. Rendered inline,
+          the dialog was trapped inside that card: clipped by its overflow-hidden and sized
+          to the card instead of the viewport, which is exactly the broken download dialog
+          reported on /history. Mounting it on <body>, which carries no transform, makes the
+          panel viewport-sized and centred again. */}
+      {isExpanded && canPreview
+        ? createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -439,8 +449,11 @@ function GenerationCard({
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+          // The portal target: <body> owns this overlay now, not the card it was opened from.
+          document.body,
+        )
+        : null}
     </article>
   );
 }

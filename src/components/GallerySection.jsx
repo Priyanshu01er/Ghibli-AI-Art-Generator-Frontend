@@ -1,3 +1,4 @@
+import useTilt from '../hooks/useTilt';
 import { useEffect, useState } from 'react'; // State holds the clicked tile; effect binds Escape
 import useImageLoaded from '../hooks/useImageLoaded'; // So a heavy photograph dissolves in rather than popping
 import useImageQueue from '../hooks/useImageQueue'; // ...and so the eight of them arrive in reading order
@@ -89,7 +90,7 @@ function galleryFilename({ title, src }) {
  * 500ms to fade, because a light that leaves as fast as it arrives reads as a switch.
  */
 const TILE_BASE_CLASS =
-  'overflow-hidden transition-shadow duration-500 ease-exit hover:shadow-glow hover:duration-200';
+  'overflow-hidden transition-[shadow,transform] duration-500 ease-exit hover:shadow-glow hover:-translate-y-1 hover:duration-200 hover:ease-settle';
 
 /** How long the popup's exit takes. Must match `panel-out`'s duration in tailwind.config.js. */
 const LIGHTBOX_EXIT_MS = 200;
@@ -103,6 +104,7 @@ const LIGHTBOX_EXIT_MS = 200;
  * request its file yet, and whether it may be seen yet, and reports back when its bytes land.
  */
 function GalleryTile({ item, onOpen, figureClassName, imageClassName, queue, queueIndex }) {
+  const tiltRef = useTilt();
   // The fade goes on the button, not the <img>: the image already owns `transition-transform` for
   // its zoom, and a second `transition-*` on the same element would silently replace it.
   const [imageRef, imageLoaded] = useImageLoaded();
@@ -118,7 +120,7 @@ function GalleryTile({ item, onOpen, figureClassName, imageClassName, queue, que
   }, [imageLoaded, queueIndex, reportSettled]);
 
   return (
-    <figure className={`${TILE_BASE_CLASS} ${figureClassName}`}>
+    <figure ref={tiltRef} className={`${TILE_BASE_CLASS} ${figureClassName}`}>
       <button
         type="button"
         // The <img> node is handed up rather than looked up by src: a selector built from a
@@ -247,7 +249,7 @@ function GallerySection() {
             /* Four tiles dealt left to right, 80ms apart. An `animation-delay` now, so — unlike the
                `delay-*` class it replaces — it cannot reach the hover glow declared above. */
             figureClassName={`rounded-2xl bg-white shadow-card ring-1 ring-stone-200 ${
-              topShown ? `animate-rise-in ${REVEAL_DELAY[index]} motion-reduce:animate-none` : 'opacity-0'
+              topShown ? `animate-gallery-enter ${REVEAL_DELAY[index]} motion-reduce:animate-none` : 'opacity-0'
             }`}
             /* h-44 on a phone: at h-56 a single-column stack of four tiles was ~900px of
                scrolling before the next section. */
@@ -263,7 +265,7 @@ function GallerySection() {
           /* `transition-all duration-700` is gone: nothing on this panel hovers, so the reveal
              animation is now its only motion — a transition here described nothing. */
           className={`rounded-2xl bg-white p-5 shadow-card ring-1 ring-stone-200 sm:p-6 lg:p-8 ${
-            cardsShown ? 'animate-rise-in motion-reduce:animate-none' : 'opacity-0'
+            cardsShown ? 'animate-gallery-enter motion-reduce:animate-none' : 'opacity-0'
           }`}
         >
           {/* `whitespace-nowrap` is removed rather than gated at a breakpoint: this string is
@@ -296,7 +298,7 @@ function GallerySection() {
           /* Same nowrap overflow as the card above, same fix — and the same reveal, one beat behind
              on an `animation-delay` rather than the `delay-100` class. */
           className={`rounded-2xl bg-white p-5 shadow-card ring-1 ring-stone-200 sm:p-6 lg:p-8 ${
-            cardsShown ? 'animate-rise-in [animation-delay:120ms] motion-reduce:animate-none' : 'opacity-0'
+            cardsShown ? 'animate-gallery-enter [animation-delay:120ms] motion-reduce:animate-none' : 'opacity-0'
           }`}
         >
           <h3 className="text-xl font-semibold tracking-tight sm:text-2xl lg:text-3xl">

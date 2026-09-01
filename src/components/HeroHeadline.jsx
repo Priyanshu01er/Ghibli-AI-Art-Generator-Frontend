@@ -72,7 +72,7 @@ function HeroHeadline() {
           offset += line.text.length + 1; // +1 for the '\n' tick that separates the lines
 
           return (
-            <span className={line.className ?? undefined} key={line.text}>
+            <span className={`${line.className ?? ""} transition-opacity duration-200 ${revealed >= lineStart ? "opacity-100" : "opacity-0"}`} key={line.text}>
               {[...line.text].map((char, charIndex) => {
                 const index = lineStart + charIndex;
                 const hasCaret = index === caretIndex;

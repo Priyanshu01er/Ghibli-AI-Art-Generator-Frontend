@@ -38,11 +38,11 @@ export const REVEAL_ROOT_MARGIN = '0px 0px -8% 0px';
  * text, so `[animation-delay:${index * 80}ms]` produces a class that is never generated.
  */
 export const REVEAL_DELAY = [
-  '[animation-delay:0ms]',
-  '[animation-delay:80ms]',
-  '[animation-delay:160ms]',
-  '[animation-delay:240ms]',
-  '[animation-delay:320ms]',
+  '[animation-delay:0ms]',    // Quadratic ease-out: faster arrivals at the head,
+  '[animation-delay:60ms]',   // so the first few tiles feel like a natural cluster
+  '[animation-delay:130ms]',  // rather than a mechanically-spaced queue. The tail
+  '[animation-delay:210ms]',  // spreads out just enough that the last item's arrival
+  '[animation-delay:300ms]',  // still reads as its own event. 400ms cap kept.
   '[animation-delay:400ms]',
 ];
 

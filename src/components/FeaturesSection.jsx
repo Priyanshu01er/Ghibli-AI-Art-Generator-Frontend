@@ -76,11 +76,11 @@ function FeaturesSection() {
             // reveal forced: opacity is the animation's business now, and this element's only
             // transition is the lift. Fast in, slow out — a real object answers a pointer at once
             // and takes its time settling back.
-            className={`group rounded-2xl bg-white p-6 shadow-card ring-1 ring-stone-200 transition-transform duration-500 ease-exit hover:-translate-y-1 hover:duration-200 hover:ease-settle sm:p-8 ${
+            className={`group rounded-2xl bg-white p-6 shadow-card ring-1 ring-stone-200 transition-transform duration-500 ease-exit hover:-translate-y-1 hover:duration-200 hover:ease-springIn sm:p-8 ${
               shown ? `animate-rise-in ${REVEAL_DELAY[index]} motion-reduce:animate-none` : 'opacity-0'
             }`}
           >
-            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 transition-transform duration-500 ease-exit group-hover:scale-110 group-hover:duration-200 group-hover:ease-settle sm:mb-5">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 transition-transform duration-500 ease-exit group-hover:scale-110 group-hover:duration-200 group-hover:ease-springIn sm:mb-5">
               {featureIcons[index]}
             </div>
             {/* text-3xl was the worst offender on a phone: 30px card titles in a stack read as

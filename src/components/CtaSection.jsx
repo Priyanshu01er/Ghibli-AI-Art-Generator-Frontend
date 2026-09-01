@@ -1,7 +1,12 @@
+import useParallax from '../hooks/useParallax';
+import useMagnet from '../hooks/useMagnet';
 import { Link } from 'react-router-dom';
 import useRevealOnScroll from '../hooks/useRevealOnScroll'; // Fades the panel up the first time it is reached
 
 function CtaSection() {
+  const [blob1Ref, blob1Offset] = useParallax(0.08);
+  const [blob2Ref, blob2Offset] = useParallax(-0.12);
+  const magnetRef = useMagnet();
   const [panelRef, shown] = useRevealOnScroll(); // The ref goes on the panel itself — one group, one observer
 
   return (
@@ -20,13 +25,13 @@ function CtaSection() {
             a phase offset: two circles tracing the same line in step is what made the ambient layer
             read as a pulse. They also breathe now — scale 1 → 1.1 — so the light shifts, not just
             slides. */}
-        <div className="pointer-events-none absolute -left-24 -top-20 h-56 w-56 animate-drift-wide rounded-full bg-brand-100/70 blur-3xl motion-reduce:animate-none" />
-        <div className="pointer-events-none absolute -bottom-24 -right-20 h-64 w-64 animate-drift-slow rounded-full bg-accent-300/50 blur-3xl [animation-delay:-6s] motion-reduce:animate-none" />
+        <div ref={blob1Ref} style={{ translate: `0 ${blob1Offset}px` }} className="pointer-events-none absolute -left-24 -top-20 h-56 w-56 animate-drift-wide rounded-full bg-brand-100/70 blur-3xl motion-reduce:animate-none" />
+        <div ref={blob2Ref} style={{ translate: `0 ${blob2Offset}px` }} className="pointer-events-none absolute -bottom-24 -right-20 h-64 w-64 animate-drift-slow rounded-full bg-accent-300/50 blur-3xl [animation-delay:-6s] motion-reduce:animate-none" />
         <h2 className="font-heading text-2xl font-bold text-slate-900 sm:text-4xl lg:text-5xl">Create Your Magical Artwork Today</h2>
         <p className="mx-auto mt-4 max-w-3xl text-base text-slate-600 sm:mt-6 sm:text-lg lg:text-xl">
           Ignite your imagination with Ghibli AI and transform everyday life into extraordinary cinematic adventures.
         </p>
-        <Link to="/create" className="btn-brand mt-8 inline-flex sm:mt-10">
+        <Link ref={magnetRef} to="/create" style={{ translate: "var(--magnet-x, 0) var(--magnet-y, 0)" }} className="btn-brand mt-8 inline-flex sm:mt-10">
           Try Ghibli AI For Free
         </Link>
       </div>

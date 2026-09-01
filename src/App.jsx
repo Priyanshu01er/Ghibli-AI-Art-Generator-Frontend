@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import CreatePage from './components/CreatePage';
@@ -22,10 +22,50 @@ const SCROLL_TO_TOP_ROUTES = ['/create', '/login', '/signup', '/history', '/lega
 function ScrollToTop() {
   const { pathname } = useLocation();
 
-  useEffect(() => {
-    if (SCROLL_TO_TOP_ROUTES.includes(pathname)) {
-      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  // useLayoutEffect rather than useEffect: a layout effect commits before the browser paints,
+  // so the very first frame of the new route already shows its top. The effect version let one
+  // frame of the new page paint at the old scroll offset (the /home footer) before jumping —
+  // exactly the down-to-up sweep the first-click-after-render report described.
+  useLayoutEffect(() => {
+    const isScrollToTopRoute = SCROLL_TO_TOP_ROUTES.includes(pathname);
+
+    // Take the scroll position away from the browser while we are on one of these routes: with
+    // history.scrollRestoration left at its 'auto' default, the browser can move the viewport on
+    // its own after a route change and race the jump below. Off these routes the default goes
+    // back, so a Back press onto a section route still restores where the visitor was.
+    const previousRestoration = history.scrollRestoration;
+    history.scrollRestoration = isScrollToTopRoute ? 'manual' : 'auto';
+    if (!isScrollToTopRoute) {
+      return;
     }
+
+    // 'behavior: auto' does NOT mean "instant" — per the CSSOM View spec it defers to the
+    // scrolling box's own scroll-behavior, and index.css sets 'scroll-behavior: smooth' on
+    // <html>. So an unpinned scrollTo here is really a smooth scroll from wherever the previous
+    // page was scrolled (the footer of /home, say) to the top, and on the way it swept the
+    // viewport past every section of the new page: each IntersectionObserver fired mid-flight,
+    // every scroll reveal finished off-screen, and pages like /terms looked finished and
+    // motionless the instant they settled. Pinning 'scroll-behavior: auto' on <html> makes the
+    // jump genuinely instant, so the entrance motion plays from the top exactly as it does on a
+    // fresh load.
+    const root = document.documentElement;
+    const previousBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    // Hand the original behaviour back only once the jump is provably committed — two frames,
+    // not one: a single rAF can fire before the browser has flushed the instant scroll, which
+    // would let the pinned behaviour leak into the next programmatic scroll (the header/footer
+    // section links, which must stay smooth).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        root.style.scrollBehavior = previousBehavior;
+      });
+    });
+
+    // Give the browser its scroll-restoration mode back when we leave these routes.
+    return () => {
+      history.scrollRestoration = previousRestoration;
+    };
   }, [pathname]);
 
   return null;

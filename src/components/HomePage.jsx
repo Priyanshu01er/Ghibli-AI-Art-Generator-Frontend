@@ -9,6 +9,7 @@ import GallerySection from './GallerySection';
 import Header from './Header';
 import HeroSection from './HeroSection';
 import InspirationSection from './InspirationSection'; // Quotes + the H1–H4 landscapes
+import WonderSection from './WonderSection'; // The Z1–Z6 postcard mosaic (new, between FAQ and CTA)
 import useBackendWakeUp from '../hooks/useBackendWakeUp'; // Starts the free-tier instance waking
 
 function HomePage() {
@@ -59,6 +60,10 @@ function HomePage() {
             and gives the page a breath before a wall of questions. Nothing above or below moved. */}
         <InspirationSection />
         <FaqSection />
+        {/* Task 3: the page ended too soon after the FAQ. This scenery beat (the Z1–Z6 postcards)
+            lengthens the page and gives the eye a rest — answers first, scenery next, then the
+            invitation below. Nothing above or below this line moved. */}
+        <WonderSection />
         <CtaSection />
       </main>
 

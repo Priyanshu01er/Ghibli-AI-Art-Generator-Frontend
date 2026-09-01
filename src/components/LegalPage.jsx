@@ -92,7 +92,7 @@ function Clause({ index, clause }) {
       /* Shadow only, and no transform: the reveal owns this element's transform, and the site's
          fast-in/slow-out pair carries the hover. */
       className={`rounded-3xl bg-white p-5 shadow-card ring-1 ring-stone-200 transition-shadow duration-500 ease-exit hover:shadow-glow hover:duration-200 sm:p-6 ${
-        shown ? 'animate-rise-in motion-reduce:animate-none' : 'opacity-0'
+        shown ? 'animate-card-flip-in motion-reduce:animate-none' : 'opacity-0'
       }`}
     >
       <div className="flex items-start gap-4">
@@ -139,7 +139,7 @@ function StorageColumn({ title, items, tone }) {
          container sliding while its contents slide reads as mush. Opacity only here. */
       className={`rounded-3xl p-5 shadow-card ring-1 motion-reduce:animate-none sm:p-6 ${
         isKept ? 'bg-brand-50 ring-brand-100' : 'bg-white ring-stone-200'
-      } ${shown ? 'animate-soft-in' : 'opacity-0'}`}
+      } ${shown ? 'animate-float-in' : 'opacity-0'}`}
     >
       <h3 className="font-heading text-xl font-semibold text-slate-900">{title}</h3>
       <ul className="mt-4 space-y-2.5 text-base text-slate-600">
@@ -148,7 +148,7 @@ function StorageColumn({ title, items, tone }) {
             key={item}
             // Read top to bottom, 80ms apart — five points, so this is what the longer ladder is for.
             className={`flex items-start gap-3 motion-reduce:animate-none ${
-              shown ? `animate-rise-in ${revealDelay(index)}` : 'opacity-0'
+              shown ? `animate-card-flip-in ${revealDelay(index)}` : 'opacity-0'
             }`}
           >
             <span
@@ -199,12 +199,17 @@ function LegalPage() {
       <main className="bg-gradient-to-b from-stone-100 via-brand-50/50 to-brand-100/60">
         {/* Hero band: L1.png full-bleed behind a scrim dark enough for white text at AA. */}
         <section className="relative isolate overflow-hidden">
-          <LegalArtwork
-            src={legalHeroArt}
-            alt="" // Decorative: the heading below carries the meaning
-            loading="eager" // Above the fold — this is the one of the three that must not be deferred
-            className="absolute inset-0 h-full w-full object-cover"
-          />
+          {/* Ken Burns zoom: a slow 32s pan across the hero background. The develop-in
+              animation sits on the <img> itself (opacity + blur), while this wrapper owns the
+              transform — two separate elements means no animation collision. */}
+          <div className="absolute inset-0 animate-ken-burns motion-reduce:animate-none">
+            <LegalArtwork
+              src={legalHeroArt}
+              alt="" // Decorative: the heading below carries the meaning
+              loading="eager" // Above the fold — this is the one of the three that must not be deferred
+              className="h-full w-full object-cover"
+            />
+          </div>
           <div
             aria-hidden="true"
             className="absolute inset-0 bg-gradient-to-br from-brand-900/85 via-brand-900/65 to-slate-900/80"
@@ -215,21 +220,21 @@ function LegalPage() {
           <div ref={heroRef} className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <p
               className={`text-sm font-semibold uppercase tracking-[0.2em] text-brand-100 motion-reduce:animate-none ${
-                heroShown ? `animate-rise-in ${revealDelay(0)}` : 'opacity-0'
+                heroShown ? `animate-card-flip-in ${revealDelay(0)}` : 'opacity-0'
               }`}
             >
               Ghibli AI · Legal
             </p>
             <h1
               className={`mt-3 font-heading text-4xl font-bold text-white motion-reduce:animate-none sm:text-5xl ${
-                heroShown ? `animate-rise-in ${revealDelay(1)}` : 'opacity-0'
+                heroShown ? `animate-card-flip-in ${revealDelay(1)}` : 'opacity-0'
               }`}
             >
               The short, honest version
             </h1>
             <p
               className={`mt-4 max-w-2xl text-lg leading-relaxed text-stone-100/90 motion-reduce:animate-none ${
-                heroShown ? `animate-rise-in ${revealDelay(2)}` : 'opacity-0'
+                heroShown ? `animate-card-flip-in ${revealDelay(2)}` : 'opacity-0'
               }`}
             >
               Two halves: what you agree to when you use the generator, and exactly what is kept
@@ -238,7 +243,7 @@ function LegalPage() {
             </p>
             <p
               className={`mt-3 text-sm text-stone-200/80 motion-reduce:animate-none ${
-                heroShown ? `animate-rise-in ${revealDelay(3)}` : 'opacity-0'
+                heroShown ? `animate-card-flip-in ${revealDelay(3)}` : 'opacity-0'
               }`}
             >
               Last updated {legalUpdatedAt}
@@ -246,7 +251,7 @@ function LegalPage() {
 
             <div
               className={`mt-8 flex flex-wrap gap-3 motion-reduce:animate-none ${
-                heroShown ? `animate-rise-in ${revealDelay(4)}` : 'opacity-0'
+                heroShown ? `animate-card-flip-in ${revealDelay(4)}` : 'opacity-0'
               }`}
             >
               <Link
@@ -276,21 +281,21 @@ function LegalPage() {
             <div>
               <span
                 className={`inline-block rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-700 motion-reduce:animate-none ${
-                  termsIntroShown ? `animate-rise-in ${revealDelay(0)}` : 'opacity-0'
+                  termsIntroShown ? `animate-card-flip-in ${revealDelay(0)}` : 'opacity-0'
                 }`}
               >
                 Part one
               </span>
               <h2
                 className={`mt-4 font-heading text-3xl font-bold text-slate-900 motion-reduce:animate-none sm:text-4xl ${
-                  termsIntroShown ? `animate-rise-in ${revealDelay(1)}` : 'opacity-0'
+                  termsIntroShown ? `animate-card-flip-in ${revealDelay(1)}` : 'opacity-0'
                 }`}
               >
                 Terms of Service
               </h2>
               <p
                 className={`mt-4 text-lg leading-relaxed text-slate-600 motion-reduce:animate-none ${
-                  termsIntroShown ? `animate-rise-in ${revealDelay(2)}` : 'opacity-0'
+                  termsIntroShown ? `animate-card-flip-in ${revealDelay(2)}` : 'opacity-0'
                 }`}
               >
                 Eight clauses. They cover what the service is, what you may put into it, who owns
@@ -304,7 +309,7 @@ function LegalPage() {
                 bare `hover:`, which meant only the picture itself responded. */}
             <figure
               className={`group overflow-hidden rounded-3xl bg-white shadow-card ring-1 ring-stone-200 motion-reduce:animate-none ${
-                termsIntroShown ? `animate-rise-in ${revealDelay(1)}` : 'opacity-0'
+                termsIntroShown ? `animate-card-flip-in ${revealDelay(1)}` : 'opacity-0'
               }`}
             >
               <LegalArtwork
@@ -329,7 +334,7 @@ function LegalPage() {
           <div ref={privacyIntroRef} className="grid items-center gap-8 lg:grid-cols-2">
             <figure
               className={`group order-last overflow-hidden rounded-3xl bg-white shadow-card ring-1 ring-stone-200 motion-reduce:animate-none lg:order-first ${
-                privacyIntroShown ? `animate-rise-in ${revealDelay(1)}` : 'opacity-0'
+                privacyIntroShown ? `animate-card-flip-in ${revealDelay(1)}` : 'opacity-0'
               }`}
             >
               <LegalArtwork
@@ -342,21 +347,21 @@ function LegalPage() {
             <div>
               <span
                 className={`inline-block rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-700 motion-reduce:animate-none ${
-                  privacyIntroShown ? `animate-rise-in ${revealDelay(0)}` : 'opacity-0'
+                  privacyIntroShown ? `animate-card-flip-in ${revealDelay(0)}` : 'opacity-0'
                 }`}
               >
                 Part two
               </span>
               <h2
                 className={`mt-4 font-heading text-3xl font-bold text-slate-900 motion-reduce:animate-none sm:text-4xl ${
-                  privacyIntroShown ? `animate-rise-in ${revealDelay(1)}` : 'opacity-0'
+                  privacyIntroShown ? `animate-card-flip-in ${revealDelay(1)}` : 'opacity-0'
                 }`}
               >
                 Privacy Policy
               </h2>
               <p
                 className={`mt-4 text-lg leading-relaxed text-slate-600 motion-reduce:animate-none ${
-                  privacyIntroShown ? `animate-rise-in ${revealDelay(2)}` : 'opacity-0'
+                  privacyIntroShown ? `animate-card-flip-in ${revealDelay(2)}` : 'opacity-0'
                 }`}
               >
                 Every field named below was read off this project&apos;s own database models, so the
@@ -382,7 +387,7 @@ function LegalPage() {
           <div
             ref={closingRef}
             className={`rounded-3xl bg-white p-6 text-center shadow-card ring-1 ring-stone-200 motion-reduce:animate-none sm:p-8 ${
-              closingShown ? 'animate-rise-in' : 'opacity-0'
+              closingShown ? 'animate-card-flip-in' : 'opacity-0'
             }`}
           >
             <h2 className="font-heading text-2xl font-bold text-slate-900 sm:text-3xl">

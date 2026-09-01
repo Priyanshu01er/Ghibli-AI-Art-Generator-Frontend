@@ -38,6 +38,7 @@ function Header() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false); // The one menu that replaced the auth cluster
   const [isScrolled, setIsScrolled] = useState(false); // Drives the bar's elevation shadow, below
+  const [scrollProgress, setScrollProgress] = useState(0); // 0–1, drives the accent bar
   const menuRef = useRef(null); // Wraps button + panel, so an outside click can be told apart
 
   /**
@@ -46,7 +47,11 @@ function Header() {
    * and React bails out of the re-render whenever the value has not actually changed.
    */
   useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 8);
+    const onScroll = () => {
+      setIsScrolled(window.scrollY > 8);
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(maxScroll > 0 ? Math.min(window.scrollY / maxScroll, 1) : 0);
+    };
 
     onScroll(); // A reload halfway down the page must not start flat and then pop
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -154,6 +159,12 @@ function Header() {
         isScrolled ? 'shadow-card' : 'shadow-none'
       }`}
     >
+      {/* Scroll progress bar: a thin accent line at the bottom of the header that fills as the visitor scrolls. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 origin-left bg-gradient-to-r from-brand-500 to-accent-500"
+        style={{ transform: `scaleX(${scrollProgress})` }}
+      />
       {/* h-16 on a phone: 80px of a 667px-tall screen is a lot of chrome, and the bar now holds
           only two things there. gap-3 keeps the wordmark off the menu button at 360px. */}
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-20 sm:px-6 lg:px-8">

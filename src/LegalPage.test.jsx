@@ -59,7 +59,7 @@ test('all sixteen clauses are present, and not one is left hidden', () => {
       // and `classList.contains` rather than a substring check because 'opacity-0' is a prefix of
       // 'opacity-05' and friends.
       expect(card.classList.contains('opacity-0')).toBe(false);
-      expect(card.classList.contains('animate-rise-in')).toBe(true);
+      expect(card.classList.contains('animate-card-flip-in')).toBe(true);
     });
   });
 });
@@ -88,9 +88,9 @@ test('both storage columns list all five of their points, revealed', () => {
     expect(point.classList.contains('opacity-0')).toBe(false);
     // The fifth point sits on `revealDelay(4)`, which is the rung that did not exist before this
     // page: reading `REVEAL_DELAY[4]` used to yield `undefined` and silently drop the stagger.
-    expect(point.classList.contains('animate-rise-in')).toBe(true);
+    expect(point.classList.contains('animate-card-flip-in')).toBe(true);
   });
 
   const lastKept = screen.getByText(privacyStored[4]).closest('li');
-  expect(lastKept.classList.contains('[animation-delay:320ms]')).toBe(true);
+  expect(lastKept.classList.contains('[animation-delay:300ms]')).toBe(true);
 });
